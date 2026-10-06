@@ -2999,7 +2999,7 @@ if page == "Dashboard":
         st.success(f"Deleted inquiries: {deleted_names}")
     managed_companies = rows(
         "SELECT company_id, company_name, continent, country, distribution_type, stage, potential, "
-        "next_action, next_action_date, inquiry_date, last_modified "
+        "next_action, inquiry_date, last_modified, owner "
         "FROM companies ORDER BY "
         "CASE WHEN next_action_date<>'' AND next_action_date<=? "
         "AND stage NOT IN ('DEAL CLOSING','LOST','REJECTED') THEN 0 ELSE 1 END, "
@@ -3056,16 +3056,12 @@ if page == "Dashboard":
         for row_number, item in enumerate(page_companies, start=page_start + 1):
             elapsed = unmanaged_days(item["inquiry_date"])
             idle = unmanaged_days(item["last_modified"])
-            due = (item["next_action_date"] or "")[:10]
-            try:
-                due_value = date.fromisoformat(due) if due else None
-            except ValueError:
-                due_value = None
             table_rows.append({
                 "Company ID": item["company_id"],
                 "No.": row_number,
                 "Delete": False,
                 "Company": item["company_name"] or "Unnamed",
+                "Owner": item["owner"] or "Unassigned",
                 "Continent": item["continent"] or "Unknown",
                 "Country": item["country"] or "Unknown",
                 "Distribution": item["distribution_type"] if item["distribution_type"] in DISTRIBUTION_TYPES else "Unknown",
@@ -3074,7 +3070,6 @@ if page == "Dashboard":
                 "Next Action": canonical_next_action(
                     item["next_action"], item["stage"] if item["stage"] in STAGES else "NEW"
                 ),
-                "Next Action Date": due_value,
                 "Inquiry Date": item["inquiry_date"] or "—",
                 "Last Modified": format_last_modified(item["last_modified"]),
                 "Elapsed Days": elapsed if elapsed is not None else "—",
@@ -3090,8 +3085,8 @@ if page == "Dashboard":
                 use_container_width=True,
                 hide_index=True,
                 num_rows="fixed",
-                disabled=["Company ID", "No.", "Company", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"],
-                column_order=(["No.", "Company", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Next Action Date", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"] if has_company_button else ["No.", "Open Detail", "Company", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Next Action Date", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"]),
+                disabled=["Company ID", "No.", "Company", "Owner", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"],
+                column_order=(["No.", "Company", "Owner", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"] if has_company_button else ["No.", "Open Detail", "Company", "Owner", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"]),
                 column_config={
                     "No.": st.column_config.NumberColumn("No.", width=40, alignment="center"),
                     "Delete": st.column_config.CheckboxColumn("Delete", help="Select inquiries for deletion.", width=55),
@@ -3103,6 +3098,7 @@ if page == "Dashboard":
                             key="dashboard_company_detail_click"
                         ) if has_company_button else st.column_config.TextColumn("Company", width=205)
                     ),
+                    "Owner": st.column_config.TextColumn("Owner", width=105),
                     "Continent": st.column_config.TextColumn("Continent", width=100),
                     "Country": st.column_config.TextColumn("Country", width=105),
                     "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=110),
@@ -3111,7 +3107,6 @@ if page == "Dashboard":
                     "Next Action": st.column_config.SelectboxColumn(
                         "Next Action", options=STAGES, required=False, width=125
                     ),
-                    "Next Action Date": st.column_config.DateColumn("Next Action Date", format="YYYY-MM-DD", width=125),
                     "Inquiry Date": st.column_config.TextColumn("Inquiry Date", width=95),
                     "Last Modified": st.column_config.TextColumn("Last Modified", width=115),
                     "Elapsed Days": st.column_config.NumberColumn("Elapsed Days", width=70),
@@ -3168,24 +3163,20 @@ if page == "Dashboard":
                 old = originals.get(company_id)
                 if not old:
                     continue
-                due_value = row.get("Next Action Date")
-                due_text = due_value.isoformat() if hasattr(due_value, "isoformat") else (str(due_value or "")[:10])
                 updates = (
                     row.get("Distribution") or "Unknown",
                     row.get("Stage") or "NEW",
                     row.get("Potential") or "Review",
                     canonical_next_action(row.get("Next Action"), row.get("Stage") or "NEW"),
-                    due_text,
                 )
                 previous = (
                     old["distribution_type"] or "Unknown", old["stage"] or "NEW",
                     old["potential"] or "Review", canonical_next_action(old["next_action"], old["stage"] or "NEW"),
-                    (old["next_action_date"] or "")[:10],
                 )
                 if updates != previous:
                     c.execute(
                         "UPDATE companies SET distribution_type=?, stage=?, potential=?, next_action=?, "
-                        "next_action_date=?, last_modified=? WHERE company_id=?",
+                        "last_modified=? WHERE company_id=?",
                         (*updates, datetime.now().isoformat(timespec="seconds"), company_id)
                     )
                     changed_count += 1
@@ -3571,7 +3562,12 @@ elif page == "Inquiry Input":
             final["distribution_type"] = fc13.selectbox("FINAL — Distribution", DISTRIBUTION_TYPES, index=DISTRIBUTION_TYPES.index(current_distribution) if current_distribution in DISTRIBUTION_TYPES else 0, key="v5_final_distribution")
             final["potential"] = fc14.selectbox("Potential", POTENTIALS, index=POTENTIALS.index(final.get("potential", extracted.get("potential", "Review"))) if final.get("potential", extracted.get("potential", "Review")) in POTENTIALS else 0, key="v5_final_potential")
             final["stage"] = fc15.selectbox("Stage", STAGES, index=STAGES.index(final.get("stage", extracted.get("stage", "NEW"))) if final.get("stage", extracted.get("stage", "NEW")) in STAGES else 0, key="v5_final_stage")
-            final["owner"] = fc16.text_input("Owner", final.get("owner", extracted.get("owner", "")), key="v5_final_owner")
+            logged_in_owner = st.session_state.get("authenticated_username", "")
+            st.session_state["v5_final_owner"] = logged_in_owner
+            final["owner"] = fc16.text_input(
+                "Owner (signed-in ID)", value=logged_in_owner,
+                disabled=True, key="v5_final_owner"
+            )
             current_next_action = canonical_next_action(
                 final.get("next_action") or extracted.get("next_action") or "QUALIFICATION",
                 final.get("stage") or extracted.get("stage") or "NEW"
@@ -3649,7 +3645,7 @@ elif page == "Inquiry Input":
                             "potential": final.get("potential", "Review"),
                             "potential_reason": final.get("potential_reason", ""),
                             "stage": final.get("stage", "NEW"),
-                            "owner": final.get("owner", ""),
+                            "owner": st.session_state.get("authenticated_username", ""),
                             "inquiry_date": final.get("inquiry_date", date.today()).isoformat() if hasattr(final.get("inquiry_date", date.today()), "isoformat") else str(final.get("inquiry_date", date.today()))[:10],
                             "last_contact_date": date.today().isoformat(),
                             "next_action": final.get("next_action", ""),
