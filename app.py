@@ -3151,14 +3151,9 @@ if page == "Dashboard":
         (date.today().isoformat(),)
     )
     all_managed_companies = managed_companies
-    management_filter_cols = st.columns([1, 2], gap="medium")
-    idle_threshold = management_filter_cols[0].number_input(
-        "Highlight companies unchanged for this many days", min_value=1,
-        max_value=3650, value=30, step=1, key="dashboard_idle_threshold"
-    )
-    company_search = management_filter_cols[1].text_input(
-        "Search company",
-        placeholder="Enter part of a company name",
+    company_search = st.text_input(
+        "Search company or contact",
+        placeholder="Enter part of a company or contact name",
         key="dashboard_company_search",
     ).strip()
     previous_search = st.session_state.get("dashboard_company_search_previous", "")
@@ -3170,33 +3165,19 @@ if page == "Dashboard":
         managed_companies = [
             item for item in all_managed_companies
             if search_term in (item["company_name"] or "").casefold()
+            or search_term in (item["contact_name"] or "").casefold()
         ]
     if managed_companies:
         total_companies = len(managed_companies)
         page_size_options = [10, 25, 50, 100]
-        page_controls = st.columns([1, 1, 2, 1, 1], vertical_alignment="center")
-        page_size = page_controls[0].selectbox(
-            "Rows per page", page_size_options, index=0, key="dashboard_company_page_size"
-        )
+        page_size = st.session_state.get("dashboard_company_page_size", page_size_options[0])
+        if page_size not in page_size_options:
+            page_size = page_size_options[0]
         total_pages = max(1, (total_companies + page_size - 1) // page_size)
         current_page = min(
             max(1, int(st.session_state.get("dashboard_company_page", 1))), total_pages
         )
         st.session_state.dashboard_company_page = current_page
-        page_controls[1].markdown(f"**Page {current_page} of {total_pages}**")
-        page_controls[2].caption(
-            f"Showing {(current_page - 1) * page_size + 1}–{min(current_page * page_size, total_companies)} of {total_companies} companies"
-        )
-        if page_controls[3].button(
-            "← Previous", disabled=current_page <= 1, key="dashboard_company_previous_page"
-        ):
-            st.session_state.dashboard_company_page = current_page - 1
-            st.rerun()
-        if page_controls[4].button(
-            "Next →", disabled=current_page >= total_pages, key="dashboard_company_next_page"
-        ):
-            st.session_state.dashboard_company_page = current_page + 1
-            st.rerun()
 
         page_start = (current_page - 1) * page_size
         page_companies = managed_companies[page_start:page_start + page_size]
@@ -3276,6 +3257,29 @@ if page == "Dashboard":
                     "Days Since Update": st.column_config.NumberColumn("Days Idle", width=68),
                 }
             )
+        idle_threshold = st.number_input(
+            "Highlight companies unchanged for this many days", min_value=1,
+            max_value=3650, value=30, step=1, key="dashboard_idle_threshold"
+        )
+        page_controls = st.columns([1, 1, 2, 1, 1], vertical_alignment="center")
+        page_controls[0].selectbox(
+            "Rows per page", page_size_options, index=page_size_options.index(page_size),
+            key="dashboard_company_page_size"
+        )
+        page_controls[1].markdown(f"**Page {current_page} of {total_pages}**")
+        page_controls[2].caption(
+            f"Showing {(current_page - 1) * page_size + 1}–{min(current_page * page_size, total_companies)} of {total_companies} companies"
+        )
+        if page_controls[3].button(
+            "← Previous", disabled=current_page <= 1, key="dashboard_company_previous_page"
+        ):
+            st.session_state.dashboard_company_page = current_page - 1
+            st.rerun()
+        if page_controls[4].button(
+            "Next →", disabled=current_page >= total_pages, key="dashboard_company_next_page"
+        ):
+            st.session_state.dashboard_company_page = current_page + 1
+            st.rerun()
         edited_records = edited.to_dict("records") if hasattr(edited, "to_dict") else edited
         action_cols = st.columns([1, 1, 6])
         save_clicked = action_cols[0].button("Save Table Changes", type="primary", key="dashboard_save_table")
@@ -3512,7 +3516,7 @@ if page == "Dashboard":
                 st.caption("No activity has been recorded yet.")
     else:
         if company_search and all_managed_companies:
-            st.info(f"No companies match “{company_search}”. Try a shorter part of the name.")
+            st.info(f"No company or contact matches “{company_search}”. Try a shorter part of the name.")
         else:
             st.info("No companies to manage yet.")
 
