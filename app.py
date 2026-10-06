@@ -2794,7 +2794,11 @@ if not authenticate_user():
 
 st.markdown("""
 <style>
-    [data-testid="stDataEditor"] {font-size: 0.82rem;}
+    [data-testid="stDataEditor"] {font-size: 0.78rem;}
+    .st-key-company-management-table [data-testid="stDataEditor"] {
+        font-size: 0.74rem;
+        line-height: 1.15;
+    }
     /* Keep the wide management grid inside the viewport on narrow screens. */
     .st-key-company-management-table {
         width: 100%;
@@ -3088,29 +3092,29 @@ if page == "Dashboard":
                 disabled=["Company ID", "No.", "Company", "Owner", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"],
                 column_order=(["No.", "Company", "Owner", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"] if has_company_button else ["No.", "Open Detail", "Company", "Owner", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"]),
                 column_config={
-                    "No.": st.column_config.NumberColumn("No.", width=40, alignment="center"),
-                    "Delete": st.column_config.CheckboxColumn("Delete", help="Select inquiries for deletion.", width=55),
+                    "No.": st.column_config.NumberColumn("No.", width=38, alignment="center"),
+                    "Delete": st.column_config.CheckboxColumn("Delete", help="Select inquiries for deletion.", width=68),
                     **({"Open Detail": st.column_config.CheckboxColumn("Select company", width="small")} if not has_company_button else {}),
                     "Company": (
                         st.column_config.ButtonColumn(
-                            "Company", type="tertiary", width=205, alignment="left",
+                            "Company", type="tertiary", width=200, alignment="left",
                             on_click=open_company_from_table, args=(company_ids,),
                             key="dashboard_company_detail_click"
                         ) if has_company_button else st.column_config.TextColumn("Company", width=205)
                     ),
-                    "Owner": st.column_config.TextColumn("Owner", width=105),
-                    "Continent": st.column_config.TextColumn("Continent", width=100),
-                    "Country": st.column_config.TextColumn("Country", width=105),
-                    "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=110),
-                    "Stage": st.column_config.SelectboxColumn("Stage", options=STAGES, required=True, width=105),
-                    "Potential": st.column_config.SelectboxColumn("Potential", options=POTENTIALS, required=True, width=80),
+                    "Owner": st.column_config.TextColumn("Owner", width=90),
+                    "Continent": st.column_config.TextColumn("Continent", width=92),
+                    "Country": st.column_config.TextColumn("Country", width=96),
+                    "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=104),
+                    "Stage": st.column_config.SelectboxColumn("Stage", options=STAGES, required=True, width=96),
+                    "Potential": st.column_config.SelectboxColumn("Potential", options=POTENTIALS, required=True, width=78),
                     "Next Action": st.column_config.SelectboxColumn(
-                        "Next Action", options=STAGES, required=False, width=125
+                        "Next Action", options=STAGES, required=False, width=112
                     ),
-                    "Inquiry Date": st.column_config.TextColumn("Inquiry Date", width=95),
-                    "Last Modified": st.column_config.TextColumn("Last Modified", width=115),
-                    "Elapsed Days": st.column_config.NumberColumn("Elapsed Days", width=70),
-                    "Days Since Update": st.column_config.NumberColumn("Days Idle", width=70),
+                    "Inquiry Date": st.column_config.TextColumn("Inquiry Date", width=92),
+                    "Last Modified": st.column_config.TextColumn("Modified", width=105),
+                    "Elapsed Days": st.column_config.NumberColumn("Elapsed (d)", width=72),
+                    "Days Since Update": st.column_config.NumberColumn("Days Idle", width=68),
                 }
             )
         edited_records = edited.to_dict("records") if hasattr(edited, "to_dict") else edited
