@@ -3142,7 +3142,7 @@ if page == "Dashboard":
     if deleted_names:
         st.success(f"Deleted inquiries: {deleted_names}")
     managed_companies = rows(
-        "SELECT company_id, company_name, continent, country, distribution_type, stage, potential, "
+        "SELECT company_id, company_name, contact_name, continent, country, distribution_type, stage, potential, "
         "next_action, inquiry_date, last_modified, owner "
         "FROM companies ORDER BY "
         "CASE WHEN next_action_date<>'' AND next_action_date<=? "
@@ -3222,7 +3222,8 @@ if page == "Dashboard":
                 "No.": row_number,
                 "Delete": False,
                 "Company": item["company_name"] or "Unnamed",
-                "Owner": item["owner"] or "Unassigned",
+                "Sales Owner": item["owner"] or "Unassigned",
+                "Company Contact": item["contact_name"] or "—",
                 "Continent": item["continent"] or "Unknown",
                 "Country": item["country"] or "Unknown",
                 "Distribution": item["distribution_type"] if item["distribution_type"] in DISTRIBUTION_TYPES else "Unknown",
@@ -3246,27 +3247,28 @@ if page == "Dashboard":
                 use_container_width=True,
                 hide_index=True,
                 num_rows="fixed",
-                disabled=["Company ID", "No.", "Company", "Owner", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"],
-                column_order=(["No.", "Company", "Owner", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"] if has_company_button else ["No.", "Open Detail", "Company", "Owner", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"]),
+                disabled=["Company ID", "No.", "Company", "Sales Owner", "Company Contact", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"],
+                column_order=(["No.", "Company", "Sales Owner", "Company Contact", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"] if has_company_button else ["No.", "Open Detail", "Company", "Sales Owner", "Company Contact", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"]),
                 column_config={
                     "No.": st.column_config.NumberColumn("No.", width=38, alignment="center"),
                     "Delete": st.column_config.CheckboxColumn("Delete", help="Select inquiries for deletion.", width=68),
                     **({"Open Detail": st.column_config.CheckboxColumn("Select company", width="small")} if not has_company_button else {}),
                     "Company": (
                         st.column_config.ButtonColumn(
-                            "Company", type="tertiary", width=200, alignment="left",
+                            "Company", type="tertiary", width=190, alignment="left",
                             on_click=open_company_from_table, args=(company_ids,),
                             key="dashboard_company_detail_click"
                         ) if has_company_button else st.column_config.TextColumn("Company", width=205)
                     ),
-                    "Owner": st.column_config.TextColumn("Owner", width=90),
+                    "Sales Owner": st.column_config.TextColumn("Sales Owner", width=100),
+                    "Company Contact": st.column_config.TextColumn("Company Contact", width=135),
                     "Continent": st.column_config.TextColumn("Continent", width=92),
                     "Country": st.column_config.TextColumn("Country", width=96),
-                    "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=104),
+                    "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=98),
                     "Stage": st.column_config.SelectboxColumn("Stage", options=STAGES, required=True, width=96),
                     "Potential": st.column_config.SelectboxColumn("Potential", options=POTENTIALS, required=True, width=78),
                     "Next Action": st.column_config.SelectboxColumn(
-                        "Next Action", options=STAGES, required=False, width=112
+                        "Next Action", options=STAGES, required=False, width=104
                     ),
                     "Inquiry Date": st.column_config.TextColumn("Inquiry Date", width=92),
                     "Last Modified": st.column_config.TextColumn("Modified", width=105),
@@ -3729,7 +3731,7 @@ elif page == "Inquiry Input":
             logged_in_owner = st.session_state.get("authenticated_username", "")
             st.session_state["v5_final_owner"] = logged_in_owner
             final["owner"] = fc16.text_input(
-                "Owner (signed-in ID)", value=logged_in_owner,
+                "Sales Owner (signed-in ID)", value=logged_in_owner,
                 disabled=True, key="v5_final_owner"
             )
             current_next_action = canonical_next_action(
