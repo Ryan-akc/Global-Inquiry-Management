@@ -750,6 +750,15 @@ def extract_name(text):
     if m:
         name = clean_value(m.group(1)).strip('"\' ')
 
+        # Remove honorifics that are often attached to the display name
+        # (for example, "Dr-Tamer Fawaz" or "Dr. Tamer Fawaz").
+        name = re.sub(
+            r"^(?:Dr|Doctor|Mr|Mrs|Ms|Miss|Prof|Professor)(?:\s*[-.]\s*|\s+)",
+            "",
+            name,
+            flags=re.I,
+        ).strip()
+
         # Remove company suffix from display name
         name = re.split(r"\s+[-–—]\s+", name)[0].strip()
 
@@ -768,6 +777,13 @@ def extract_name(text):
 
     if m:
         candidate = clean_value(m.group(1))
+
+        candidate = re.sub(
+            r"^(?:Dr|Doctor|Mr|Mrs|Ms|Miss|Prof|Professor)(?:\s*[-.]\s*|\s+)",
+            "",
+            candidate,
+            flags=re.I,
+        ).strip()
 
         if (
             candidate
@@ -819,6 +835,13 @@ def extract_name(text):
         if line.lower().rstrip(",!:") in closing_words:
 
             for candidate in lines[i + 1:i + 6]:
+
+                candidate = re.sub(
+                    r"^(?:Dr|Doctor|Mr|Mrs|Ms|Miss|Prof|Professor)(?:\s*[-.]\s*|\s+)",
+                    "",
+                    candidate,
+                    flags=re.I,
+                ).strip()
 
                 candidate = re.split(
                     r"\s+[-–—]\s+",
@@ -906,6 +929,16 @@ def extract_position(text):
 
     if m:
         return clean_value(m.group(1))
+
+    # Short self-identifications are common even when no formal title appears
+    # in the signature (for example, "I am a pharmacist").
+    m = re.search(
+        r"\bI\s+am\s+(?:a|an)\s+((?:licensed\s+)?(?:pharmacist|physician|doctor|dentist|chemist|buyer|consultant|entrepreneur))\b",
+        text,
+        re.I,
+    )
+    if m:
+        return clean_value(m.group(1)).title()
 
     # ---------------------------------------------------------
     # 2. "I'm NAME, POSITION at COMPANY"
@@ -1117,6 +1150,14 @@ def extract_company(text, from_name=""):
         if not value:
             return None
 
+        # A signature location such as "Riyadh, Saudi Arabia" is not a company.
+        location_countries = globals().get("COUNTRIES", {})
+        if "," in value and any(
+            value.rsplit(",", 1)[-1].strip().casefold() == country.casefold()
+            for country in location_countries
+        ):
+            return None
+
         value = value.strip()
         value = value.strip(" \t\r\n:,-")
         value = re.sub(r"[.,;:]+$", "", value).strip()
@@ -1220,6 +1261,19 @@ def extract_company(text, from_name=""):
         if m:
             candidate = clean_company(m.group(1))
 
+            if candidate:
+                return candidate
+
+    # Intros frequently name the prospecting organization without a labeled field:
+    # "I am writing to introduce Bimark" / "Let me introduce Example Co.".
+    intro_patterns = [
+        r"(?i)\b(?:introduce|introducing)\s+(?:you\s+to\s+)?([A-Z][A-Za-z0-9&.'’()\-]*(?:\s+[A-Z][A-Za-z0-9&.'’()\-]*){0,5})\b(?=\s*(?:[,.;]|\s+and\s+))",
+        r"(?im)^\s*([A-Z][A-Za-z0-9&.'’()\-]*(?:\s+[A-Z][A-Za-z0-9&.'’()\-]*){0,5})\s+is\s+an?\s+(?:established|leading|independent|beauty|cosmetics|skincare|skin-care|pharmaceutical|medical)\b",
+    ]
+    for pattern in intro_patterns:
+        match = re.search(pattern, clean_text)
+        if match:
+            candidate = clean_company(match.group(1))
             if candidate:
                 return candidate
 
@@ -1669,8 +1723,10 @@ def extract_website(text, email=""):
     ignored_domains = {
         "google.com", "facebook.com", "instagram.com",
         "linkedin.com", "tiktok.com", "microsoft.com",
-        "gmail.com", "outlook.com", "hotmail.com",
-        "yahoo.com", "naver.com"
+        "gmail.com", "outlook.com", "hotmail.com", "live.com",
+        "yahoo.com", "naver.com", "icloud.com", "me.com",
+        "proton.me", "protonmail.com", "aol.com", "gmx.com",
+        "mail.com", "yandex.com"
     }
 
     # A labeled company website is stronger evidence than incidental links.
@@ -1787,6 +1843,7 @@ COUNTRIES = {
     "Philippines": "Asia",
 
     "Saudi Arabia": "Middle East",
+    "Andorra": "Europe",
     "UAE": "Middle East",
     "United Arab Emirates": "Middle East",
     "Qatar": "Middle East",
@@ -1859,6 +1916,7 @@ PHONE_COUNTRY_CODES = {
     "+64": "New Zealand",
     "+55": "Brazil",
     "+52": "Mexico",
+    "+966": "Saudi Arabia",
     "+1": "United States"
 }
 
@@ -1870,7 +1928,20 @@ def infer_country(
     website=""
 ):
 
-    # A country mentioned in sales copy is not enough to establish location.
+    def country_mentioned(value):
+        """Find the first country mentioned in a short, location-specific string."""
+        found = []
+        for country, continent in COUNTRIES.items():
+            match = re.search(r"(?<![A-Za-z])" + re.escape(country) + r"(?![A-Za-z])", value or "", re.I)
+            if match:
+                found.append((match.start(), -len(country), country, continent))
+        if not found:
+            return "", ""
+        _, _, country, continent = min(found)
+        return country, continent
+
+    # Prefer explicit location/signature evidence and then the email subject,
+    # which commonly states the intended market (e.g. "Partnership in Spain").
     location_parts = [
         match.group(1)
         for match in re.finditer(
@@ -1885,25 +1956,27 @@ def infer_country(
         )
         if location_match:
             location_parts.append(location_match.group(1))
+
+    # A signature line like "Riyadh, Saudi Arabia" directly identifies the
+    # sender's location, even when it is not labeled as an address.
+    normalized_lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    closing_re = re.compile(r"^(?:best regards|kind regards|warm regards|regards|best|sincerely|thanks|thank you)[,!: ]*$", re.I)
+    for index, line in enumerate(normalized_lines):
+        if closing_re.match(line):
+            signature_lines = normalized_lines[index + 1:index + 7]
+            for signature_line in signature_lines:
+                country, continent = country_mentioned(signature_line)
+                if country:
+                    return country, continent
+
     location_text = "\n".join(location_parts)
+    country, continent = country_mentioned(location_text)
+    if country:
+        return country, continent
 
-    # 1. Explicit country/location fields
-    for country in sorted(
-        COUNTRIES,
-        key=len,
-        reverse=True
-    ):
-
-        if re.search(
-            r"\b" + re.escape(country) + r"\b",
-            location_text,
-            re.I
-        ):
-
-            return (
-                country,
-                COUNTRIES[country]
-            )
+    subject_country, subject_continent = country_mentioned(extract_subject(text or ""))
+    if subject_country:
+        return subject_country, subject_continent
 
     # 2. Phone
     for code, country in sorted(
@@ -2217,50 +2290,44 @@ def classify(text, subject=""):
 # ============================================================
 
 def generate_inquiry_summary(text, subject="", country=""):
-    x = text.lower()
-    market = country or "the market"
+    # Use factual sentences from the email itself. Template summaries used to
+    # add unsupported claims (such as local registration or direct purchasing)
+    # even when the sender had not requested them.
+    body_lines = []
+    for line in (text or "").replace("\r", "").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if re.match(r"^(?:from|sent|to|cc|bcc|subject|date|importance|received)\s*:", stripped, re.I):
+            continue
+        if re.match(r"^(?:dear\b|hello\b|hi\b|good morning\b|good afternoon\b)", stripped, re.I):
+            continue
+        body_lines.append(stripped)
 
-    if ("distribution" in x or "distributor" in x) and ("direct" in x or "import" in x or "register" in x):
-        parts = [
-            f"Direct supply and distribution inquiry for Mary&May in {market}.",
-            "The company is seeking direct purchase, local registration and sales authorization."
-        ]
-        requests = []
-        if "moq" in x or "minimum order" in x:
-            requests.append("MOQ/opening order value")
-        if "price list" in x or "wholesale price" in x:
-            requests.append("wholesale pricing")
-        if "sample" in x:
-            requests.append("samples")
-        if "payment terms" in x:
-            requests.append("payment terms")
-        if "shipping" in x or "lead time" in x:
-            requests.append("shipping/lead time")
-        if any(k in x for k in ["gmp", "iso 22716", "msds", "registration"]):
-            requests.append("regulatory documentation")
-        if requests:
-            parts.append("Requests include " + ", ".join(requests) + ".")
-        return " ".join(parts)
+    body = " ".join(body_lines)
+    sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", body)
+    relevant_terms = (
+        "partnership", "distribution", "distributor", "market", "experience",
+        "years", "retail", "pharmacy", "beauty", "brand", "sales team",
+        "points of sale", "interested", "develop", "qualification", "request",
+        "quotation", "price", "sample", "registration", "authorization",
+    )
+    ranked = []
+    for index, sentence in enumerate(sentences):
+        sentence = clean_value(sentence)
+        if len(sentence) < 35 or len(sentence) > 600:
+            continue
+        low = sentence.casefold()
+        score = sum(2 if term in low else 0 for term in relevant_terms)
+        if score:
+            ranked.append((score, index, sentence))
 
-    if "baltic" in x and ("distribution" in x or "distributor" in x):
-        return (
-            f"Partnership inquiry for official Mary&May distribution in {market} "
-            "and the Baltic markets."
-        )
-
-    if "distribution" in x or "distributor" in x:
-        return f"Partnership inquiry for Mary&May distribution in {market}."
-
-    if "wholesale" in x:
-        return "Wholesale inquiry for Mary&May products."
-
-    if "reseller" in x:
-        return "Inquiry regarding authorized resale of Mary&May products."
-
-    if subject:
-        return subject
-
-    return "Inbound sales inquiry."
+    selected = sorted(ranked, key=lambda item: (-item[0], item[1]))[:4]
+    selected.sort(key=lambda item: item[1])
+    summary = " ".join(item[2] for item in selected)
+    if summary:
+        return summary[:1000].rsplit(" ", 1)[0] if len(summary) > 1000 else summary
+    return subject or "Inbound sales inquiry."
 
 
 # ============================================================
