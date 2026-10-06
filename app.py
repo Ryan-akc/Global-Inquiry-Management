@@ -902,6 +902,8 @@ def is_probable_position(value):
         "international sales",
         "brand",
         "r&d",
+        "komercijos vadybinink",
+        "komercijos vadov",
     )
 
     if any(keyword in low for keyword in position_keywords):
@@ -929,6 +931,11 @@ def extract_position(text):
 
     if m:
         return clean_value(m.group(1))
+
+    if re.search(r"(?i)\bkomercijos\s+vadybininkas\b", text):
+        return "Commercial Manager"
+    if re.search(r"(?i)\bkomercijos\s+vadovas\b", text):
+        return "Commercial Manager"
 
     # Short self-identifications are common even when no formal title appears
     # in the signature (for example, "I am a pharmacist").
@@ -1263,6 +1270,20 @@ def extract_company(text, from_name=""):
 
             if candidate:
                 return candidate
+
+    # Some countries place the legal form before the company name. Preserve
+    # Lithuanian and nearby legal forms found on a standalone signature line.
+    prefix_legal_pattern = (
+        r"(?im)^\s*((?:UAB|AB|MB|VšĮ|VSI))\s*"
+        r"[\"'„“‘’«]?\s*(.+?)\s*[\"'”’»]?\s*$"
+    )
+    legal_line = re.search(prefix_legal_pattern, clean_text)
+    if legal_line:
+        candidate = clean_company(
+            legal_line.group(1) + " " + legal_line.group(2).strip(" \t\"'„“”‘’«»")
+        )
+        if candidate:
+            return candidate
 
     # Intros frequently name the prospecting organization without a labeled field:
     # "I am writing to introduce Bimark" / "Let me introduce Example Co.".
@@ -1737,6 +1758,13 @@ def extract_website(text, email=""):
     if m:
         website = m.group(1).rstrip(".,;:)>]")
         return website if website.lower().startswith("http") else "https://" + website
+
+    # Markdown-formatted email signatures often wrap the website in a link.
+    markdown_link = re.search(
+        r"\[[^\]]+\]\((https?://[^)\s]+)\)", text or "", re.I
+    )
+    if markdown_link:
+        return markdown_link.group(1).rstrip(".,;:)")
 
     # The sender's organization domain is usually stronger than incidental links.
     if email and "@" in email:
@@ -2351,8 +2379,21 @@ def analyze_email(text):
     company = extract_company(text, from_name=sender_name)
     legal_entity = ""
     legal_form = r"(?:S\.?r\.?l\.?|S\.?l\.?|S\.?p\.?A\.?|Ltd\.?|Limited|LLC|Inc\.?|GmbH|S\.?A\.?|B\.?V\.?|PLC|Pte\.?\s*Ltd\.?)"
+    # Lithuanian company registrations put the legal form before the name:
+    # UAB „Nemuno vaistinė“. Keep that in Legal Entity and normalize the CRM name.
+    prefix_legal_match = re.search(
+        r"(?im)^\s*((?:UAB|AB|MB|VšĮ|VSI))\s*[\"'„“‘’«]?\s*(.+?)\s*[\"'”’»]?\s*$",
+        text or "",
+    )
+    if prefix_legal_match:
+        prefix = clean_value(prefix_legal_match.group(1))
+        normalized_name = clean_value(prefix_legal_match.group(2)).strip(" \t\r\n\"'„“”‘’«»")
+        if normalized_name:
+            legal_entity = f"{prefix} {normalized_name}"
+            if company == "Unknown" or re.match(r"(?i)^UAB\b", company):
+                company = normalized_name
     if company and re.search(r"\s" + legal_form + r"$", company, re.I):
-        legal_entity = company
+        legal_entity = legal_entity or company
         company = re.sub(r"\s" + legal_form + r"$", "", company, flags=re.I).strip()
         # A country prefix is sometimes included in a legal/trading name line.
         company = re.sub(r"^(?:Spain|España)\s+", "", company, flags=re.I).strip()
