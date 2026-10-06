@@ -175,8 +175,9 @@ class PostgresCursor:
 
 
 class PostgresConnection:
-    def __init__(self, connection):
+    def __init__(self, connection, pool=None):
         self.connection = connection
+        self.pool = pool
 
     def execute(self, sql, params=()):
         # Queries use qmark placeholders in the SQLite version of the app.
@@ -186,7 +187,10 @@ class PostgresConnection:
         self.connection.commit()
 
     def close(self):
-        self.connection.close()
+        if self.pool is not None:
+            self.pool.putconn(self.connection)
+        else:
+            self.connection.close()
 
 
 def company_table_columns(connection):
@@ -200,19 +204,32 @@ def company_table_columns(connection):
     return {row[1] for row in connection.execute("PRAGMA table_info(companies)").fetchall()}
 
 
+@st.cache_resource(show_spinner=False)
+def postgres_pool():
+    if not SUPABASE_DB_URL:
+        return None
+    try:
+        from psycopg_pool import ConnectionPool
+    except ImportError as exc:
+        raise RuntimeError("Supabase mode requires psycopg with its pool extra. Install requirements.txt.") from exc
+    return ConnectionPool(
+        conninfo=SUPABASE_DB_URL,
+        kwargs={
+            "sslmode": "require",
+            "connect_timeout": 15,
+            "prepare_threshold": None,
+        },
+        min_size=1,
+        max_size=4,
+        timeout=15,
+        open=True,
+    )
+
+
 def db():
     if SUPABASE_DB_URL:
-        try:
-            import psycopg
-        except ImportError as exc:
-            raise RuntimeError("Supabase mode requires psycopg. Install requirements.txt.") from exc
-        connection = psycopg.connect(
-            SUPABASE_DB_URL,
-            sslmode="require",
-            connect_timeout=15,
-            prepare_threshold=None,
-        )
-        return PostgresConnection(connection)
+        pool = postgres_pool()
+        return PostgresConnection(pool.getconn(timeout=15), pool)
     DB.parent.mkdir(parents=True, exist_ok=True)
     c = sqlite3.connect(str(DB), timeout=30)
     c.execute("PRAGMA busy_timeout=30000")
@@ -2689,9 +2706,15 @@ def create_or_reset_team_account():
 # INIT
 # ============================================================
 
-init_db()
-ensure_v5_columns()
-provision_initial_admin()
+@st.cache_resource(show_spinner=False)
+def initialize_database_once():
+    init_db()
+    ensure_v5_columns()
+    provision_initial_admin()
+    return True
+
+
+initialize_database_once()
 
 st.set_page_config(
     page_title="Global Inquiry Manager",
@@ -2975,28 +2998,28 @@ if page == "Dashboard":
                 disabled=["Company ID", "No.", "Company", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"],
                 column_order=(["No.", "Company", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Next Action Date", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"] if has_company_button else ["No.", "Open Detail", "Company", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Next Action Date", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"]),
                 column_config={
-                    "No.": st.column_config.NumberColumn("No.", width=45, alignment="center"),
-                    "Delete": st.column_config.CheckboxColumn("Delete", help="Select inquiries for deletion.", width=60),
+                    "No.": st.column_config.NumberColumn("No.", width=40, alignment="center"),
+                    "Delete": st.column_config.CheckboxColumn("Delete", help="Select inquiries for deletion.", width=55),
                     **({"Open Detail": st.column_config.CheckboxColumn("Select company", width="small")} if not has_company_button else {}),
                     "Company": (
                         st.column_config.ButtonColumn(
-                            "Company", type="tertiary", width=245, alignment="left",
+                            "Company", type="tertiary", width=205, alignment="left",
                             on_click=open_company_from_table, args=(company_ids,),
                             key="dashboard_company_detail_click"
-                        ) if has_company_button else st.column_config.TextColumn("Company", width=245)
+                        ) if has_company_button else st.column_config.TextColumn("Company", width=205)
                     ),
-                    "Continent": st.column_config.TextColumn("Continent", width=120),
-                    "Country": st.column_config.TextColumn("Country", width=120),
-                    "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=125),
-                    "Stage": st.column_config.SelectboxColumn("Stage", options=STAGES, required=True, width=130),
-                    "Potential": st.column_config.SelectboxColumn("Potential", options=POTENTIALS, required=True, width=75),
+                    "Continent": st.column_config.TextColumn("Continent", width=100),
+                    "Country": st.column_config.TextColumn("Country", width=105),
+                    "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=110),
+                    "Stage": st.column_config.SelectboxColumn("Stage", options=STAGES, required=True, width=105),
+                    "Potential": st.column_config.SelectboxColumn("Potential", options=POTENTIALS, required=True, width=80),
                     "Next Action": st.column_config.SelectboxColumn(
-                        "Next Action", options=STAGES, required=False, width=145
+                        "Next Action", options=STAGES, required=False, width=125
                     ),
-                    "Next Action Date": st.column_config.DateColumn("Next Action Date", format="YYYY-MM-DD", width=145),
+                    "Next Action Date": st.column_config.DateColumn("Next Action Date", format="YYYY-MM-DD", width=125),
                     "Inquiry Date": st.column_config.TextColumn("Inquiry Date", width=95),
-                    "Last Modified": st.column_config.TextColumn("Last Modified", width=120),
-                    "Elapsed Days": st.column_config.NumberColumn("Elapsed Days", width=75),
+                    "Last Modified": st.column_config.TextColumn("Last Modified", width=115),
+                    "Elapsed Days": st.column_config.NumberColumn("Elapsed Days", width=70),
                     "Days Since Update": st.column_config.NumberColumn("Days Idle", width=70),
                 }
             )

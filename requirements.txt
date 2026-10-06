@@ -1,2 +1,2 @@
 streamlit>=1.47,<2.0
-psycopg[binary]>=3.2,<4
+psycopg[binary,pool]>=3.2,<4
