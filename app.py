@@ -2944,9 +2944,37 @@ if page == "Dashboard":
         max_value=3650, value=30, step=1, key="dashboard_idle_threshold"
     )
     if managed_companies:
+        total_companies = len(managed_companies)
+        page_size_options = [10, 25, 50, 100]
+        page_controls = st.columns([1, 1, 2, 1, 1], vertical_alignment="center")
+        page_size = page_controls[0].selectbox(
+            "Rows per page", page_size_options, index=0, key="dashboard_company_page_size"
+        )
+        total_pages = max(1, (total_companies + page_size - 1) // page_size)
+        current_page = min(
+            max(1, int(st.session_state.get("dashboard_company_page", 1))), total_pages
+        )
+        st.session_state.dashboard_company_page = current_page
+        page_controls[1].markdown(f"**Page {current_page} of {total_pages}**")
+        page_controls[2].caption(
+            f"Showing {(current_page - 1) * page_size + 1}–{min(current_page * page_size, total_companies)} of {total_companies} companies"
+        )
+        if page_controls[3].button(
+            "← Previous", disabled=current_page <= 1, key="dashboard_company_previous_page"
+        ):
+            st.session_state.dashboard_company_page = current_page - 1
+            st.rerun()
+        if page_controls[4].button(
+            "Next →", disabled=current_page >= total_pages, key="dashboard_company_next_page"
+        ):
+            st.session_state.dashboard_company_page = current_page + 1
+            st.rerun()
+
+        page_start = (current_page - 1) * page_size
+        page_companies = managed_companies[page_start:page_start + page_size]
         table_rows = []
         originals = {item["company_id"]: item for item in managed_companies}
-        company_ids = [item["company_id"] for item in managed_companies]
+        company_ids = [item["company_id"] for item in page_companies]
         has_company_button = hasattr(st.column_config, "ButtonColumn")
 
         def open_company_from_table(company_ids):
@@ -2958,7 +2986,7 @@ if page == "Dashboard":
                 st.session_state.dashboard_detail_company = company_ids[row_index]
 
         next_action_options = list(STAGES)
-        for row_number, item in enumerate(managed_companies, start=1):
+        for row_number, item in enumerate(page_companies, start=page_start + 1):
             elapsed = unmanaged_days(item["inquiry_date"])
             idle = unmanaged_days(item["last_modified"])
             due = (item["next_action_date"] or "")[:10]
@@ -2991,7 +3019,7 @@ if page == "Dashboard":
         with st.container(key="company-management-table"):
             edited = st.data_editor(
                 table_rows,
-                key=f"dashboard_company_editor_v4_{st.session_state.get('dashboard_editor_version', 0)}",
+                key=f"dashboard_company_editor_v5_{page_size}_{current_page}_{st.session_state.get('dashboard_editor_version', 0)}",
                 use_container_width=True,
                 hide_index=True,
                 num_rows="fixed",
