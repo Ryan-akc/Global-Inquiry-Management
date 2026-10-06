@@ -545,12 +545,12 @@ def format_last_modified(value):
 def render_horizontal_count_table(headers, counts):
     """Render a compact, equal-width summary row without dataframe canvas rendering."""
     safe_headers = "".join(
-        '<th style="background:#fbf3f5;padding:10px 5px;border-bottom:1px solid #f0e1e5;'
+        '<th style="background:#fbf3f5;padding:7px 5px;border-bottom:1px solid #f0e1e5;'
         f'border-right:1px solid #f0e1e5;color:#76515d;font-size:.75rem;font-weight:650;white-space:normal;overflow-wrap:anywhere">{html_escape(str(header))}</th>'
         for header in headers
     )
     safe_values = "".join(
-        '<td style="padding:12px 14px 12px 5px;font-size:1.05rem;font-weight:650;'
+        '<td style="padding:7px 10px 7px 5px;font-size:.98rem;font-weight:650;'
         'border-right:1px solid #f0e1e5;color:#9d526b;text-align:right;background:#fff">'
         f'{html_escape(str(counts.get(header, 0)))}</td>'
         for header in headers
@@ -2897,6 +2897,65 @@ st.markdown("""
         color:#344054 !important; -webkit-text-fill-color:#344054 !important;
         opacity:1 !important; background:#f2f4f7 !important;
     }
+    /* Compact vertical rhythm on Dashboard and Inquiry Input; keep full width. */
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero),
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+    }
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stVerticalBlock"],
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) [data-testid="stVerticalBlock"] {
+        gap: .58rem !important;
+    }
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) h1,
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) h2,
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) h3,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) h1,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) h2,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) h3 {
+        margin-top: .2rem !important;
+        margin-bottom: .2rem !important;
+    }
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stTextInput"] label,
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stSelectbox"] label,
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stDateInput"] label,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) [data-testid="stTextInput"] label,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) [data-testid="stTextArea"] label,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) [data-testid="stSelectbox"] label {
+        font-size: .8rem !important;
+        margin-bottom: .15rem !important;
+    }
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stTextInput"] input,
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stDateInput"] input,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) [data-testid="stTextInput"] input,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) [data-testid="stTextArea"] textarea,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+        font-size: .86rem !important;
+    }
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) .dashboard-hero {
+        padding-top: .8rem;
+        padding-bottom: .8rem;
+        margin-top: 0;
+        margin-bottom: .7rem;
+    }
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) .dashboard-title {
+        font-size: 1.6rem;
+        line-height: 1.1;
+    }
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) .dashboard-subtitle {
+        margin-top: .2rem;
+    }
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stVerticalBlockBorderWrapper"] {
+        padding-top: .55rem;
+        padding-bottom: .55rem;
+    }
+    [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stButton"] button,
+    [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) [data-testid="stButton"] button {
+        min-height: 2.15rem;
+        padding-top: .35rem;
+        padding-bottom: .35rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -3416,7 +3475,7 @@ elif page == "Inquiry Input":
 
     email_text = st.text_area(
         "이메일 원문",
-        height=240,
+        height=175,
         key="v5_email_original",
         placeholder="Paste the complete email here..."
     )
@@ -3500,7 +3559,7 @@ elif page == "Inquiry Input":
             research_paste = st.text_area(
                 "Research Paste",
                 key="v5_research_paste",
-                height=150,
+                height=120,
                 placeholder="Company: Example Co.\nWebsite: https://example.com\nCountry: Korea\nBusiness: Cosmetics distributor\nBusiness Type: Distributor\nDistribution: Direct\nEmail: info@example.com\nLegal Entity: Example Corporation"
             )
             if st.button("Extract Research Fields", key="v5_extract_research"):
@@ -3548,7 +3607,7 @@ elif page == "Inquiry Input":
             rc13, rc14, _, _ = st.columns(4, gap="small")
             research["legal_entity"] = rc13.text_input("Research — Legal Entity", research.get("legal_entity", ""), key="v5_r_legal_entity")
             research["research_status"] = rc14.selectbox("Research Status", ["Not Started", "Partially Verified", "Verified", "Not Found"], index=["Not Started", "Partially Verified", "Verified", "Not Found"].index(research.get("research_status", "Not Started")), key="v5_r_status")
-            research["research_notes"] = st.text_area("Research Notes / Investigation Result", research.get("research_notes", ""), height=95, key="v5_r_notes")
+            research["research_notes"] = st.text_area("Research Notes / Investigation Result", research.get("research_notes", ""), height=75, key="v5_r_notes")
             st.session_state.v5_research = research
             st.session_state.v5_researched = research.get("research_status") != "Not Started" or bool(research.get("research_notes"))
 
@@ -3642,7 +3701,7 @@ elif page == "Inquiry Input":
                 inquiry_date_default = date.today()
             final["inquiry_date"] = fc19.date_input("Inquiry Date", inquiry_date_default, key="v5_final_inquiry_date")
             final["potential_reason"] = fc20.text_input("Potential Reason", final.get("potential_reason", extracted.get("potential_reason", "")), key="v5_final_potential_reason")
-            final["remarks"] = st.text_area("Research / Remarks", final.get("remarks", research.get("research_notes", "") or extracted.get("remarks", "")), key="v5_final_remarks", height=95)
+            final["remarks"] = st.text_area("Research / Remarks", final.get("remarks", research.get("research_notes", "") or extracted.get("remarks", "")), key="v5_final_remarks", height=75)
             st.session_state.v5_final = final
 
             st.divider()
