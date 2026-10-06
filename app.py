@@ -1186,6 +1186,13 @@ def extract_company(text, from_name=""):
         if re.search(r"https?://|www\.", value, re.I):
             return None
 
+        # Do not let a phone number at the end of a signature become the
+        # fallback company candidate.
+        digit_count = len(re.sub(r"\D", "", value))
+        letter_count = len(re.sub(r"[^A-Za-zÀ-ÿ]", "", value))
+        if digit_count >= 7 and letter_count <= 2:
+            return None
+
         # Sentence fragments
         bad_phrases = [
             "unsubscribe",
