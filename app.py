@@ -711,7 +711,9 @@ def is_generic_sender_name(value):
         "customer service", "customer support", "support team",
         "info", "contact", "office", "admin", "hello",
         "partnerships", "business development", "procurement",
-        "purchasing", "company", "corporation", "group"
+        "purchasing", "company", "corporation", "group",
+        "mart", "market", "trading", "store", "shop", "retail",
+        "wholesale", "distributor", "pharmacy"
     ]
 
     if any(term == xl or xl.endswith(" " + term) for term in generic_terms):
@@ -834,7 +836,8 @@ def extract_name(text):
 
         if line.lower().rstrip(",!:") in closing_words:
 
-            for candidate in lines[i + 1:i + 6]:
+            signature_candidates = lines[i + 1:i + 6]
+            for candidate_index, candidate in enumerate(signature_candidates):
 
                 candidate = re.sub(
                     r"^(?:Dr|Doctor|Mr|Mrs|Ms|Miss|Prof|Professor)(?:\s*[-.]\s*|\s+)",
@@ -851,6 +854,16 @@ def extract_name(text):
                 if (
                     is_probable_person_name(candidate)
                     and not is_generic_sender_name(candidate)
+                ):
+                    return candidate
+
+                # Some sign-offs use only a first name. Accept it only when
+                # the next signature line is clearly a job title (e.g. Rafi / B2B Director).
+                next_line = signature_candidates[candidate_index + 1] if candidate_index + 1 < len(signature_candidates) else ""
+                if (
+                    re.fullmatch(r"[A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]{1,30}", candidate)
+                    and next_line
+                    and is_probable_position(next_line)
                 ):
                     return candidate
 
@@ -1333,6 +1346,13 @@ def extract_company(text, from_name=""):
             if candidate:
                 return candidate
 
+        # A business word in the From display name is strong company evidence
+        # even when the two words could superficially look like a person's name.
+        if re.search(r"(?i)\b(?:mart|market|trading|store|shop|retail|wholesale|distributor|pharmacy)\b", display):
+            candidate = clean_company(display)
+            if candidate:
+                return candidate
+
         # Company in parentheses
         m = re.search(
             r"\(([^()]{2,80})\)\s*$",
@@ -1633,6 +1653,15 @@ def extract_company(text, from_name=""):
                     continue
 
                 if is_probable_position(candidate_line):
+                    continue
+
+                candidate_index = signature_lines.index(candidate_line)
+                next_line = signature_lines[candidate_index + 1] if candidate_index + 1 < len(signature_lines) else ""
+                if (
+                    re.fullmatch(r"[A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]{1,30}", candidate_line)
+                    and next_line
+                    and is_probable_position(next_line)
+                ):
                     continue
 
                 candidate = clean_company(candidate_line)
@@ -2273,6 +2302,10 @@ def classify(text, subject=""):
     ):
 
         business_type = "Distributor"
+
+    elif any(key in x for key in ["wholesale", "wholesaler"]):
+
+        business_type = "Wholesaler"
 
     elif any(
         key in x
@@ -3117,10 +3150,27 @@ if page == "Dashboard":
         "next_action_date, lower(company_name)",
         (date.today().isoformat(),)
     )
-    idle_threshold = st.number_input(
+    all_managed_companies = managed_companies
+    management_filter_cols = st.columns([1, 2], gap="medium")
+    idle_threshold = management_filter_cols[0].number_input(
         "Highlight companies unchanged for this many days", min_value=1,
         max_value=3650, value=30, step=1, key="dashboard_idle_threshold"
     )
+    company_search = management_filter_cols[1].text_input(
+        "Search company",
+        placeholder="Enter part of a company name",
+        key="dashboard_company_search",
+    ).strip()
+    previous_search = st.session_state.get("dashboard_company_search_previous", "")
+    if company_search != previous_search:
+        st.session_state.dashboard_company_page = 1
+        st.session_state.dashboard_company_search_previous = company_search
+    if company_search:
+        search_term = company_search.casefold()
+        managed_companies = [
+            item for item in all_managed_companies
+            if search_term in (item["company_name"] or "").casefold()
+        ]
     if managed_companies:
         total_companies = len(managed_companies)
         page_size_options = [10, 25, 50, 100]
@@ -3151,7 +3201,7 @@ if page == "Dashboard":
         page_start = (current_page - 1) * page_size
         page_companies = managed_companies[page_start:page_start + page_size]
         table_rows = []
-        originals = {item["company_id"]: item for item in managed_companies}
+        originals = {item["company_id"]: item for item in all_managed_companies}
         company_ids = [item["company_id"] for item in page_companies]
         has_company_button = hasattr(st.column_config, "ButtonColumn")
 
@@ -3192,7 +3242,7 @@ if page == "Dashboard":
         with st.container(key="company-management-table"):
             edited = st.data_editor(
                 table_rows,
-                key=f"dashboard_company_editor_v5_{page_size}_{current_page}_{st.session_state.get('dashboard_editor_version', 0)}",
+                key=f"dashboard_company_editor_v6_{page_size}_{current_page}_{company_search}_{st.session_state.get('dashboard_editor_version', 0)}",
                 use_container_width=True,
                 hide_index=True,
                 num_rows="fixed",
@@ -3459,7 +3509,10 @@ if page == "Dashboard":
             else:
                 st.caption("No activity has been recorded yet.")
     else:
-        st.info("No companies to manage yet.")
+        if company_search and all_managed_companies:
+            st.info(f"No companies match “{company_search}”. Try a shorter part of the name.")
+        else:
+            st.info("No companies to manage yet.")
 
 
 # ============================================================
