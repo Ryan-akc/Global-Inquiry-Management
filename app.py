@@ -2705,6 +2705,37 @@ if not authenticate_user():
 st.markdown("""
 <style>
     [data-testid="stDataEditor"] {font-size: 0.82rem;}
+    /* Keep the wide management grid inside the viewport on narrow screens. */
+    .st-key-company-management-table {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+    .st-key-company-management-table [data-testid="stDataEditor"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+    .st-key-company-management-table [data-testid="stDataEditor"] > div {
+        max-width: 100% !important;
+        min-width: 0 !important;
+    }
+    @media (max-width: 768px) {
+        [data-testid="stMainBlockContainer"] {
+            width: 100% !important;
+            max-width: 100vw !important;
+            padding-left: .7rem !important;
+            padding-right: .7rem !important;
+            box-sizing: border-box !important;
+        }
+        .st-key-company-management-table,
+        .st-key-company-management-table [data-testid="stDataEditor"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            box-sizing: border-box !important;
+        }
+    }
     .dashboard-hero {padding:1.35rem 1.6rem;margin:.2rem 0 1.25rem;border:1px solid #f0dfe4;border-radius:18px;
         background:linear-gradient(115deg,#fffaf8 0%,#fbf3f6 58%,#f6eef3 100%);}
     .dashboard-eyebrow {font-size:.68rem;font-weight:750;letter-spacing:.16em;color:#a66d7e;text-transform:uppercase;margin-bottom:.45rem;}
@@ -2934,40 +2965,41 @@ if page == "Dashboard":
             if not has_company_button:
                 table_rows[-1]["Open Detail"] = item["company_id"] == st.session_state.get("dashboard_detail_company")
 
-        edited = st.data_editor(
-            table_rows,
-            key=f"dashboard_company_editor_v4_{st.session_state.get('dashboard_editor_version', 0)}",
-            use_container_width=True,
-            hide_index=True,
-            num_rows="fixed",
-            disabled=["Company ID", "No.", "Company", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"],
-            column_order=(["No.", "Company", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Next Action Date", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"] if has_company_button else ["No.", "Open Detail", "Company", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Next Action Date", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"]),
-            column_config={
-                "No.": st.column_config.NumberColumn("No.", width=45, alignment="center"),
-                "Delete": st.column_config.CheckboxColumn("Delete", help="Select inquiries for deletion.", width=60),
-                **({"Open Detail": st.column_config.CheckboxColumn("Select company", width="small")} if not has_company_button else {}),
-                "Company": (
-                    st.column_config.ButtonColumn(
-                        "Company", type="tertiary", width=245, alignment="left",
-                        on_click=open_company_from_table, args=(company_ids,),
-                        key="dashboard_company_detail_click"
-                    ) if has_company_button else st.column_config.TextColumn("Company", width=245)
-                ),
-                "Continent": st.column_config.TextColumn("Continent", width=120),
-                "Country": st.column_config.TextColumn("Country", width=120),
-                "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=125),
-                "Stage": st.column_config.SelectboxColumn("Stage", options=STAGES, required=True, width=130),
-                "Potential": st.column_config.SelectboxColumn("Potential", options=POTENTIALS, required=True, width=75),
-                "Next Action": st.column_config.SelectboxColumn(
-                    "Next Action", options=STAGES, required=False, width=145
-                ),
-                "Next Action Date": st.column_config.DateColumn("Next Action Date", format="YYYY-MM-DD", width=145),
-                "Inquiry Date": st.column_config.TextColumn("Inquiry Date", width=95),
-                "Last Modified": st.column_config.TextColumn("Last Modified", width=120),
-                "Elapsed Days": st.column_config.NumberColumn("Elapsed Days", width=75),
-                "Days Since Update": st.column_config.NumberColumn("Days Idle", width=70),
-            }
-        )
+        with st.container(key="company-management-table"):
+            edited = st.data_editor(
+                table_rows,
+                key=f"dashboard_company_editor_v4_{st.session_state.get('dashboard_editor_version', 0)}",
+                use_container_width=True,
+                hide_index=True,
+                num_rows="fixed",
+                disabled=["Company ID", "No.", "Company", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"],
+                column_order=(["No.", "Company", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Next Action Date", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"] if has_company_button else ["No.", "Open Detail", "Company", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Next Action Date", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"]),
+                column_config={
+                    "No.": st.column_config.NumberColumn("No.", width=45, alignment="center"),
+                    "Delete": st.column_config.CheckboxColumn("Delete", help="Select inquiries for deletion.", width=60),
+                    **({"Open Detail": st.column_config.CheckboxColumn("Select company", width="small")} if not has_company_button else {}),
+                    "Company": (
+                        st.column_config.ButtonColumn(
+                            "Company", type="tertiary", width=245, alignment="left",
+                            on_click=open_company_from_table, args=(company_ids,),
+                            key="dashboard_company_detail_click"
+                        ) if has_company_button else st.column_config.TextColumn("Company", width=245)
+                    ),
+                    "Continent": st.column_config.TextColumn("Continent", width=120),
+                    "Country": st.column_config.TextColumn("Country", width=120),
+                    "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=125),
+                    "Stage": st.column_config.SelectboxColumn("Stage", options=STAGES, required=True, width=130),
+                    "Potential": st.column_config.SelectboxColumn("Potential", options=POTENTIALS, required=True, width=75),
+                    "Next Action": st.column_config.SelectboxColumn(
+                        "Next Action", options=STAGES, required=False, width=145
+                    ),
+                    "Next Action Date": st.column_config.DateColumn("Next Action Date", format="YYYY-MM-DD", width=145),
+                    "Inquiry Date": st.column_config.TextColumn("Inquiry Date", width=95),
+                    "Last Modified": st.column_config.TextColumn("Last Modified", width=120),
+                    "Elapsed Days": st.column_config.NumberColumn("Elapsed Days", width=75),
+                    "Days Since Update": st.column_config.NumberColumn("Days Idle", width=70),
+                }
+            )
         edited_records = edited.to_dict("records") if hasattr(edited, "to_dict") else edited
         action_cols = st.columns([1, 1, 6])
         save_clicked = action_cols[0].button("Save Table Changes", type="primary", key="dashboard_save_table")
