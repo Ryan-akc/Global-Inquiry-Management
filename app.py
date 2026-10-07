@@ -3556,7 +3556,7 @@ if page == "Dashboard":
                         unsafe_allow_html=True,
                     )
             with st.container(key="original-email-panel"):
-                with st.expander("Original Email"):
+                with st.expander("Original Email · Click to view the email"):
                     original_text = detail["original_email"] or "No original email saved."
                     email_headers = {"From": "", "Sent": "", "To": "", "Cc": "", "Subject": ""}
                     header_aliases = {"from": "From", "sent": "Sent", "date": "Sent", "to": "To", "cc": "Cc", "subject": "Subject"}
