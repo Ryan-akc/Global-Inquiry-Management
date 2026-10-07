@@ -2911,7 +2911,7 @@ st.markdown("""
             box-sizing: border-box !important;
         }
     }
-    .dashboard-hero {padding:1.35rem 1.6rem;margin:.2rem 0 1.25rem;border:1px solid #f0dfe4;border-radius:18px;
+    .dashboard-hero {padding:1.35rem 1.6rem;margin:.2rem 0 1.25rem;border:1px solid #ead5df;border-top:3px solid #bd7890;border-radius:18px;
         background:linear-gradient(115deg,#fffaf8 0%,#fbf3f6 58%,#f6eef3 100%);}
     .dashboard-eyebrow {font-size:.68rem;font-weight:750;letter-spacing:.16em;color:#a66d7e;text-transform:uppercase;margin-bottom:.45rem;}
     .dashboard-title {font-size:1.8rem;line-height:1.18;font-weight:720;letter-spacing:-.035em;color:#30282c;}
@@ -2967,9 +2967,9 @@ st.markdown("""
         font-size: .86rem !important;
     }
     [data-testid="stMainBlockContainer"]:has(.dashboard-hero) .dashboard-hero {
-        padding-top: .8rem;
+        padding-top: 1rem;
         padding-bottom: .8rem;
-        margin-top: 0;
+        margin-top: .25rem;
         margin-bottom: .7rem;
     }
     [data-testid="stMainBlockContainer"]:has(.dashboard-hero) .dashboard-title {
@@ -3087,20 +3087,34 @@ if page == "Dashboard":
     except (ValueError, TypeError):
         default_stats_end = today
     with st.container(border=True):
-        st.markdown('<div class="dashboard-period-label">📅 STATISTICS PERIOD</div>', unsafe_allow_html=True)
-        period_start_col, period_end_col = st.columns(2, gap="small")
-        stats_start = period_start_col.date_input(
-            "From", value=default_stats_start, key="dashboard_stats_start"
+        period_label_start = st.session_state.get("dashboard_stats_start", default_stats_start)
+        period_label_end = st.session_state.get("dashboard_stats_end", default_stats_end)
+        if period_label_start > period_label_end:
+            period_label_start, period_label_end = period_label_end, period_label_start
+        st.markdown(
+            '<div class="dashboard-period-label">📅 STATISTICS PERIOD '
+            f'<span style="font-size:.82rem;font-weight:500;letter-spacing:0;text-transform:none">'
+            f'[문의일 기준 · {period_label_start:%Y-%m-%d} – {period_label_end:%Y-%m-%d}]</span></div>',
+            unsafe_allow_html=True,
         )
+        period_start_label, period_start_col, period_end_label, period_end_col = st.columns(
+            [.35, 1, .25, 1], gap="small", vertical_alignment="center"
+        )
+        period_start_label.markdown("**From**")
+        stats_start = period_start_col.date_input(
+            "From", value=default_stats_start, key="dashboard_stats_start",
+            label_visibility="collapsed"
+        )
+        period_end_label.markdown("**To**")
         stats_end = period_end_col.date_input(
-            "To", value=default_stats_end, key="dashboard_stats_end"
+            "To", value=default_stats_end, key="dashboard_stats_end",
+            label_visibility="collapsed"
         )
         if stats_start > stats_end:
             stats_start, stats_end = stats_end, stats_start
             st.info("시작일이 종료일보다 늦어 두 날짜를 순서대로 적용했습니다.")
         stats_start_text = stats_start.isoformat()
         stats_end_text = stats_end.isoformat()
-        st.caption(f"문의일 기준 · {stats_start_text} – {stats_end_text}")
 
     stage_counts = {
         row["stage"]: row["inquiry"]
@@ -3151,9 +3165,12 @@ if page == "Dashboard":
         (date.today().isoformat(),)
     )
     all_managed_companies = managed_companies
-    company_search = st.text_input(
+    search_label_col, search_input_col = st.columns([1, 5], gap="small", vertical_alignment="center")
+    search_label_col.markdown("**Search company or contact**")
+    company_search = search_input_col.text_input(
         "Search company or contact",
         placeholder="Enter part of a company or contact name",
+        label_visibility="collapsed",
         key="dashboard_company_search",
     ).strip()
     previous_search = st.session_state.get("dashboard_company_search_previous", "")
@@ -3257,25 +3274,27 @@ if page == "Dashboard":
                     "Days Since Update": st.column_config.NumberColumn("Days Idle", width=68),
                 }
             )
-        idle_threshold = st.number_input(
-            "Highlight companies unchanged for this many days", min_value=1,
-            max_value=3650, value=30, step=1, key="dashboard_idle_threshold"
+        page_controls = st.columns([2.3, .5, .65, 1.1, .75, 1.4, .8, .8], vertical_alignment="center")
+        page_controls[0].markdown("Highlight companies unchanged for this many days")
+        idle_threshold = page_controls[1].number_input(
+            "Highlight threshold", min_value=1, max_value=3650, value=30,
+            step=1, key="dashboard_idle_threshold", label_visibility="collapsed"
         )
-        page_controls = st.columns([1, 1, 2, 1, 1], vertical_alignment="center")
-        page_controls[0].selectbox(
+        page_controls[2].markdown("Rows / page")
+        page_controls[3].selectbox(
             "Rows per page", page_size_options, index=page_size_options.index(page_size),
-            key="dashboard_company_page_size"
+            key="dashboard_company_page_size", label_visibility="collapsed"
         )
-        page_controls[1].markdown(f"**Page {current_page} of {total_pages}**")
-        page_controls[2].caption(
+        page_controls[4].markdown(f"**Page {current_page} of {total_pages}**")
+        page_controls[5].caption(
             f"Showing {(current_page - 1) * page_size + 1}–{min(current_page * page_size, total_companies)} of {total_companies} companies"
         )
-        if page_controls[3].button(
+        if page_controls[6].button(
             "← Previous", disabled=current_page <= 1, key="dashboard_company_previous_page"
         ):
             st.session_state.dashboard_company_page = current_page - 1
             st.rerun()
-        if page_controls[4].button(
+        if page_controls[7].button(
             "Next →", disabled=current_page >= total_pages, key="dashboard_company_next_page"
         ):
             st.session_state.dashboard_company_page = current_page + 1
@@ -3370,9 +3389,6 @@ if page == "Dashboard":
 
             st.divider()
             st.markdown("### 🗂️ Company Detail")
-            st.markdown(f"#### {html_escape(detail['company_name'] or 'Unnamed')}", unsafe_allow_html=True)
-            location_label = html_escape(" · ".join(x for x in [detail["country"] or "Country unknown", detail["continent"] or "Continent unknown"] if x))
-            st.markdown(f'<div style="color:#667085;margin-top:-0.5rem;margin-bottom:1rem">{location_label}</div>', unsafe_allow_html=True)
 
             saved_notice = st.session_state.pop("company_detail_saved_notice", None)
             if saved_notice:
@@ -3486,7 +3502,18 @@ if page == "Dashboard":
                         unsafe_allow_html=True,
                     )
             with st.expander("Original Email"):
-                st.text(detail["original_email"] or "No original email saved.")
+                original_email = html_escape(detail["original_email"] or "No original email saved.")
+                st.markdown(
+                    '<table style="width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;'
+                    'border:1px solid #ead5df;border-radius:10px;overflow:hidden;font-size:.92rem">'
+                    '<tbody><tr>'
+                    '<th style="width:150px;padding:.8rem .9rem;background:#8f3d60;color:#fff;'
+                    'text-align:left;vertical-align:top;font-weight:650;border:0">Original Email</th>'
+                    f'<td style="padding:.85rem 1rem;background:#fff8fb;color:#263247;white-space:pre-wrap;'
+                    f'overflow-wrap:anywhere;line-height:1.6;vertical-align:top;border:0">{original_email}</td>'
+                    '</tr></tbody></table>',
+                    unsafe_allow_html=True,
+                )
             activity_rows = rows(
                 "SELECT activity_date, activity_type, subject, summary, next_action, next_action_date "
                 "FROM activities WHERE company_id=? ORDER BY activity_id DESC", (detail_id,)
