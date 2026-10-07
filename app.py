@@ -3606,29 +3606,30 @@ if page == "Dashboard":
                 "SELECT activity_date, activity_type, subject, summary, next_action, next_action_date "
                 "FROM activities WHERE company_id=? ORDER BY activity_id DESC", (detail_id,)
             )
-            st.markdown("#### Activity History")
-            if activity_rows:
-                activity_data = [{
-                    "Date": activity["activity_date"],
-                    "Activity": activity["activity_type"],
-                    "Subject": activity["subject"],
-                    "Summary": activity["summary"],
-                    "Next Action": activity["next_action"],
-                    "Next Action Date": activity["next_action_date"],
-                } for activity in activity_rows]
-                st.dataframe(
-                    activity_data, use_container_width=True, hide_index=True, height=260,
-                    column_config={
-                        "Date": st.column_config.TextColumn("Date", width="small"),
-                        "Activity": st.column_config.TextColumn("Activity", width="small"),
-                        "Subject": st.column_config.TextColumn("Subject", width="medium"),
-                        "Summary": st.column_config.TextColumn("Summary", width="large"),
-                        "Next Action": st.column_config.TextColumn("Next Action", width="medium"),
-                        "Next Action Date": st.column_config.TextColumn("Next Action Date", width="small"),
-                    },
-                )
-            else:
-                st.caption("No activity has been recorded yet.")
+            with st.container(border=True):
+                st.markdown("##### 🕘 Activity History")
+                if activity_rows:
+                    activity_data = [{
+                        "Date": activity["activity_date"],
+                        "Activity": activity["activity_type"],
+                        "Subject": activity["subject"],
+                        "Summary": activity["summary"],
+                        "Next Action": activity["next_action"],
+                        "Next Action Date": activity["next_action_date"],
+                    } for activity in activity_rows]
+                    st.dataframe(
+                        activity_data, use_container_width=True, hide_index=True, height=260,
+                        column_config={
+                            "Date": st.column_config.TextColumn("Date", width="small"),
+                            "Activity": st.column_config.TextColumn("Activity", width="small"),
+                            "Subject": st.column_config.TextColumn("Subject", width="medium"),
+                            "Summary": st.column_config.TextColumn("Summary", width="large"),
+                            "Next Action": st.column_config.TextColumn("Next Action", width="medium"),
+                            "Next Action Date": st.column_config.TextColumn("Next Action Date", width="small"),
+                        },
+                    )
+                else:
+                    st.caption("No activity has been recorded yet.")
     else:
         if company_search and all_managed_companies:
             st.info(f"No company or contact matches “{company_search}”. Try a shorter part of the name.")
