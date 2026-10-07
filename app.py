@@ -2973,6 +2973,19 @@ st.markdown("""
     .dashboard-title {font-size:1.8rem;line-height:1.18;font-weight:720;letter-spacing:-.035em;color:#30282c;}
     .dashboard-subtitle {font-size:.88rem;color:#766b70;margin-top:.45rem;}
     .dashboard-period-label {font-size:.68rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:#a66d7e;}
+    .st-key-original-email-panel [data-testid="stExpander"] details > summary {
+        background:#8f3d60 !important;
+        color:#ffffff !important;
+        border:1px solid #8f3d60 !important;
+        border-radius:9px 9px 0 0 !important;
+    }
+    .st-key-original-email-panel [data-testid="stExpander"] details > summary * {
+        color:#ffffff !important;
+        fill:#ffffff !important;
+    }
+    .st-key-original-email-panel [data-testid="stExpander"] details[open] > summary {
+        border-radius:9px 9px 0 0 !important;
+    }
     [data-testid="stTextInput"] label,
     [data-testid="stTextArea"] label,
     [data-testid="stSelectbox"] label,
@@ -3542,19 +3555,53 @@ if page == "Dashboard":
                         'table th{width:24%;color:#475467;background:#f8fafc;font-weight:600}table td{color:#101828;overflow-wrap:anywhere;min-height:2.5rem}</style>',
                         unsafe_allow_html=True,
                     )
-            with st.expander("Original Email"):
-                original_email = html_escape(detail["original_email"] or "No original email saved.")
-                st.markdown(
-                    '<table style="width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed;'
-                    'border:1px solid #ead5df;border-radius:10px;overflow:hidden;font-size:.92rem">'
-                    '<tbody><tr>'
-                    '<th style="width:150px;padding:.8rem .9rem;background:#8f3d60;color:#fff;'
-                    'text-align:left;vertical-align:top;font-weight:650;border:0">Original Email</th>'
-                    f'<td style="padding:.85rem 1rem;background:#fff8fb;color:#263247;white-space:pre-wrap;'
-                    f'overflow-wrap:anywhere;line-height:1.6;vertical-align:top;border:0">{original_email}</td>'
-                    '</tr></tbody></table>',
-                    unsafe_allow_html=True,
-                )
+            with st.container(key="original-email-panel"):
+                with st.expander("Original Email"):
+                    original_text = detail["original_email"] or "No original email saved."
+                    email_headers = {"From": "", "Sent": "", "To": "", "Cc": "", "Subject": ""}
+                    header_aliases = {"from": "From", "sent": "Sent", "date": "Sent", "to": "To", "cc": "Cc", "subject": "Subject"}
+                    email_body_lines = []
+                    parsing_headers = True
+                    last_header = None
+                    for email_line in original_text.splitlines():
+                        if parsing_headers and not email_line.strip():
+                            parsing_headers = False
+                            continue
+                        if parsing_headers:
+                            header_match = re.match(r"^\s*(From|Sent|Date|To|Cc|Subject)\s*:\s*(.*)$", email_line, re.I)
+                            if header_match:
+                                last_header = header_aliases[header_match.group(1).casefold()]
+                                if not email_headers[last_header]:
+                                    email_headers[last_header] = header_match.group(2).strip()
+                            elif email_line[:1].isspace() and last_header:
+                                email_headers[last_header] = (email_headers[last_header] + " " + email_line.strip()).strip()
+                            else:
+                                parsing_headers = False
+                                email_body_lines.append(email_line)
+                        else:
+                            email_body_lines.append(email_line)
+                    if not any(email_headers.values()):
+                        email_body_lines = original_text.splitlines()
+                    header_cells = "".join(
+                        f'<th style="padding:.55rem .7rem;background:#8f3d60;color:#fff;text-align:left;'
+                        f'font-size:.78rem;font-weight:650;border-right:1px solid #a95d7d">{label}</th>'
+                        for label in email_headers
+                    )
+                    value_cells = "".join(
+                        f'<td style="padding:.65rem .7rem;background:#fff8fb;color:#263247;vertical-align:top;'
+                        f'border-right:1px solid #ead5df;overflow-wrap:anywhere">{html_escape(value or "—")}</td>'
+                        for value in email_headers.values()
+                    )
+                    body_text = html_escape("\n".join(email_body_lines).strip() or "—")
+                    st.markdown(
+                        '<div style="width:100%;overflow-x:auto;border:1px solid #ead5df;border-radius:9px;">'
+                        '<table style="width:100%;min-width:850px;table-layout:fixed;border-collapse:collapse;font-size:.88rem">'
+                        f'<thead><tr>{header_cells}</tr></thead><tbody><tr>{value_cells}</tr>'
+                        f'<tr><td colspan="5" style="padding:.9rem 1rem;background:#fff;color:#263247;'
+                        f'white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;border-top:1px solid #ead5df">{body_text}</td></tr>'
+                        '</tbody></table></div>',
+                        unsafe_allow_html=True,
+                    )
             activity_rows = rows(
                 "SELECT activity_date, activity_type, subject, summary, next_action, next_action_date "
                 "FROM activities WHERE company_id=? ORDER BY activity_id DESC", (detail_id,)
