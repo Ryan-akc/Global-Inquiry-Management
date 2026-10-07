@@ -379,6 +379,61 @@ def rows(sql, params=()):
     return result
 
 
+@st.cache_data(ttl=5, show_spinner=False)
+def dashboard_date_bounds():
+    result = rows(
+        "SELECT MIN(NULLIF(inquiry_date,'')) AS first_date, "
+        "MAX(NULLIF(inquiry_date,'')) AS last_date FROM companies"
+    )
+    return result[0]["first_date"], result[0]["last_date"]
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def dashboard_companies(today_text):
+    result = rows(
+        "SELECT company_id, company_name, contact_name, continent, country, distribution_type, stage, potential, "
+        "next_action, inquiry_date, last_modified, owner "
+        "FROM companies ORDER BY "
+        "CASE WHEN next_action_date<>'' AND next_action_date<=? "
+        "AND stage NOT IN ('DEAL CLOSING','LOST','REJECTED') THEN 0 ELSE 1 END, "
+        "next_action_date, lower(company_name)",
+        (today_text,),
+    )
+    return [dict(row._mapping) if isinstance(row, CompatRow) else dict(row) for row in result]
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def dashboard_metrics(start_date, end_date):
+    c = db()
+    try:
+        result = c.execute(
+            "SELECT 'stage' AS metric, COALESCE(NULLIF(stage,''),'NEW') AS label, COUNT(*) AS inquiry "
+            "FROM companies WHERE inquiry_date BETWEEN ? AND ? GROUP BY COALESCE(NULLIF(stage,''),'NEW') "
+            "UNION ALL "
+            "SELECT 'continent' AS metric, COALESCE(NULLIF(continent,''),'Unknown') AS label, COUNT(*) AS inquiry "
+            "FROM companies WHERE inquiry_date BETWEEN ? AND ? "
+            "GROUP BY COALESCE(NULLIF(continent,''),'Unknown')",
+            (start_date, end_date, start_date, end_date),
+        ).fetchall()
+        stage_counts = {
+            row["label"]: row["inquiry"] for row in result if row["metric"] == "stage"
+        }
+        continent_counts = {continent: 0 for continent in CONTINENTS + ["Unknown"]}
+        for row in result:
+            if row["metric"] == "continent":
+                label = row["label"] if row["label"] in continent_counts else "Other"
+                continent_counts[label] += row["inquiry"]
+        return stage_counts, continent_counts
+    finally:
+        c.close()
+
+
+def clear_dashboard_cache():
+    dashboard_date_bounds.clear()
+    dashboard_companies.clear()
+    dashboard_metrics.clear()
+
+
 def scalar(sql, params=()):
     c = db()
     value = c.execute(sql, params).fetchone()[0]
@@ -581,6 +636,7 @@ def save_dashboard_company(company_id, distribution_type, stage, potential):
     )
     c.commit()
     c.close()
+    clear_dashboard_cache()
 
 
 def clean_company_name(value):
@@ -3076,16 +3132,14 @@ if page == "Dashboard":
         unsafe_allow_html=True,
     )
 
-    inquiry_date_bounds = rows(
-        "SELECT MIN(NULLIF(inquiry_date,'')) AS first_date, MAX(NULLIF(inquiry_date,'')) AS last_date FROM companies"
-    )
+    first_inquiry_date, last_inquiry_date = dashboard_date_bounds()
     today = date.today()
     try:
-        default_stats_start = date.fromisoformat(str(inquiry_date_bounds[0]["first_date"])[:10])
+        default_stats_start = date.fromisoformat(str(first_inquiry_date)[:10])
     except (ValueError, TypeError):
         default_stats_start = today
     try:
-        latest_inquiry_date = date.fromisoformat(str(inquiry_date_bounds[0]["last_date"])[:10])
+        latest_inquiry_date = date.fromisoformat(str(last_inquiry_date)[:10])
         default_stats_end = max(today, latest_inquiry_date)
     except (ValueError, TypeError):
         default_stats_end = today
@@ -3119,38 +3173,15 @@ if page == "Dashboard":
         stats_start_text = stats_start.isoformat()
         stats_end_text = stats_end.isoformat()
 
-    stage_counts = {
-        row["stage"]: row["inquiry"]
-        for row in rows(
-            "SELECT COALESCE(stage,'NEW') AS stage, COUNT(*) AS inquiry "
-            "FROM companies WHERE inquiry_date BETWEEN ? AND ? GROUP BY stage",
-            (stats_start_text, stats_end_text),
-        )
-    }
+    stage_counts, continent_summary = dashboard_metrics(stats_start_text, stats_end_text)
     stage_summary = {stage_name: stage_counts.get(stage_name, 0) for stage_name in STAGES}
     with st.container(border=True):
         st.markdown("#### 📈 Inquiries by Stage")
         render_horizontal_count_table(STAGES, stage_summary)
 
-    continent_data = rows(
-        """
-        SELECT COALESCE(NULLIF(continent,''),'Unknown') AS continent, COUNT(*) AS inquiry
-        FROM companies
-        WHERE inquiry_date BETWEEN ? AND ?
-        GROUP BY COALESCE(NULLIF(continent,''),'Unknown')
-        """,
-        (stats_start_text, stats_end_text),
-    )
-    continent_headers = CONTINENTS + ["Unknown"]
-    continent_summary = {continent: 0 for continent in continent_headers}
-    for item in continent_data:
-        label = item["continent"]
-        if label not in continent_summary:
-            label = "Other"
-        continent_summary[label] += item["inquiry"]
     with st.container(border=True):
         st.markdown("#### 🌍 By Continent")
-        render_horizontal_count_table(continent_headers, continent_summary)
+        render_horizontal_count_table(CONTINENTS + ["Unknown"], continent_summary)
 
     st.divider()
     st.markdown("#### 🏢 Company Management")
@@ -3158,15 +3189,7 @@ if page == "Dashboard":
     deleted_names = st.session_state.pop("dashboard_deleted_notice", None)
     if deleted_names:
         st.success(f"Deleted inquiries: {deleted_names}")
-    managed_companies = rows(
-        "SELECT company_id, company_name, contact_name, continent, country, distribution_type, stage, potential, "
-        "next_action, inquiry_date, last_modified, owner "
-        "FROM companies ORDER BY "
-        "CASE WHEN next_action_date<>'' AND next_action_date<=? "
-        "AND stage NOT IN ('DEAL CLOSING','LOST','REJECTED') THEN 0 ELSE 1 END, "
-        "next_action_date, lower(company_name)",
-        (date.today().isoformat(),)
-    )
+    managed_companies = dashboard_companies(date.today().isoformat())
     all_managed_companies = managed_companies
     search_label_col, search_input_col, search_actions_col = st.columns(
         [1, 3.8, 1.8], gap="small", vertical_alignment="center"
@@ -3346,6 +3369,7 @@ if page == "Dashboard":
                 c.execute(f"DELETE FROM companies WHERE company_id IN ({placeholders})", pending_delete_ids)
                 c.commit()
                 c.close()
+                clear_dashboard_cache()
                 st.session_state.dashboard_deleted_notice = ", ".join(pending_names)
                 st.session_state.pop("dashboard_pending_delete_ids", None)
                 st.session_state.dashboard_editor_version = st.session_state.get("dashboard_editor_version", 0) + 1
@@ -3383,6 +3407,7 @@ if page == "Dashboard":
                     changed_count += 1
             c.commit()
             c.close()
+            clear_dashboard_cache()
             st.success(f"Saved changes for {changed_count} company(ies).")
             st.rerun()
 
@@ -3471,6 +3496,7 @@ if page == "Dashboard":
                         )
                         c.commit()
                         c.close()
+                        clear_dashboard_cache()
                         st.session_state.company_detail_saved_notice = "Company details saved."
                         st.rerun()
 
@@ -3883,6 +3909,7 @@ elif page == "Inquiry Input":
                             company_id = c.execute(insert_sql, insert_values).lastrowid
                         c.commit()
                         c.close()
+                        clear_dashboard_cache()
                         add_activity(company_id, "Inquiry", "Initial inquiry", extracted.get("inquiry_summary", ""), final.get("next_action", ""), str(final.get("next_action_date", date.today())))
                         st.success(f"Registered: {company_name} (ID {company_id})")
                         for key in list(st.session_state.keys()):
@@ -4067,6 +4094,7 @@ elif page == "Inquiry List":
                 c.execute("DELETE FROM companies WHERE company_id=?", (pending_delete_id,))
                 c.commit()
                 c.close()
+                clear_dashboard_cache()
                 st.session_state.inquiry_deleted_notice = pending_name
                 st.session_state.pop("inquiry_delete_pending", None)
                 if st.session_state.get("selected_company") == pending_delete_id:
