@@ -1299,6 +1299,13 @@ def extract_company(text, from_name=""):
 
         # Obvious non-company values
         bad_exact = {
+            "our company",
+            "our organization",
+            "our organisation",
+            "our team",
+            "the company",
+            "the organization",
+            "the organisation",
             "manager",
             "director",
             "founder",
@@ -1346,6 +1353,28 @@ def extract_company(text, from_name=""):
 
             if candidate:
                 return candidate
+
+    # A sender often names their organization directly in the introduction:
+    # "I am reaching out from BPCP Trading LLC." Prefer that explicit company
+    # identity over generic phrases later in the email (for example, "our company").
+    legal_suffix_pattern = (
+        r"(?:S\.?r\.?l\.?|S\.?l\.?|S\.?p\.?A\.?|Ltd\.?|Limited|LLC|"
+        r"Inc\.?|Incorporated|GmbH|Corp\.?|Corporation|S\.?A\.?|B\.?V\.?|"
+        r"PLC|Pte\.?\s*Ltd\.?)"
+    )
+    from_legal_entity = re.search(
+        r"\b(?:reaching\s+out|writing|contacting|communicating)\s+"
+        r"(?:to\s+)?(?:you\s+)?from\s+"
+        r"[*_]*([A-Z0-9][A-Za-z0-9&.'’()\-]*(?:\s+[A-Z0-9][A-Za-z0-9&.'’()\-]*){0,7}\s+"
+        + legal_suffix_pattern
+        + r")[*_]*(?=\s|[,.;]|$)",
+        clean_text,
+        re.I,
+    )
+    if from_legal_entity:
+        candidate = clean_company(from_legal_entity.group(1))
+        if candidate:
+            return candidate
 
     # Some countries place the legal form before the company name. Preserve
     # Lithuanian and nearby legal forms found on a standalone signature line.
