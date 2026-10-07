@@ -3278,6 +3278,18 @@ if page == "Dashboard":
         originals = {item["company_id"]: item for item in all_managed_companies}
         company_ids = [item["company_id"] for item in page_companies]
         has_company_button = hasattr(st.column_config, "ButtonColumn")
+        can_assign_sales_owner = st.session_state.get("authenticated_role") == "admin"
+        if can_assign_sales_owner:
+            active_sales_owners = [
+                str(account["username"])
+                for account in rows("SELECT username FROM users WHERE is_active=1 ORDER BY lower(username)")
+            ]
+            current_sales_owners = [
+                str(item["owner"]) for item in all_managed_companies if item["owner"]
+            ]
+            sales_owner_options = ["Unassigned"] + sorted(
+                set(active_sales_owners + current_sales_owners), key=str.casefold
+            )
 
         def open_company_from_table(company_ids):
             click = st.session_state.get("dashboard_company_detail_click")
@@ -3315,13 +3327,16 @@ if page == "Dashboard":
                 table_rows[-1]["Open Detail"] = item["company_id"] == st.session_state.get("dashboard_detail_company")
 
         with st.container(key="company-management-table"):
+            disabled_table_columns = ["Company ID", "No.", "Company", "Company Contact", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"]
+            if not can_assign_sales_owner:
+                disabled_table_columns.append("Sales Owner")
             edited = st.data_editor(
                 table_rows,
                 key=f"dashboard_company_editor_v6_{page_size}_{current_page}_{company_search}_{st.session_state.get('dashboard_editor_version', 0)}",
                 use_container_width=True,
                 hide_index=True,
                 num_rows="fixed",
-                disabled=["Company ID", "No.", "Company", "Sales Owner", "Company Contact", "Continent", "Country", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update"],
+                disabled=disabled_table_columns,
                 column_order=(["No.", "Company", "Sales Owner", "Company Contact", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"] if has_company_button else ["No.", "Open Detail", "Company", "Sales Owner", "Company Contact", "Continent", "Country", "Distribution", "Stage", "Potential", "Next Action", "Inquiry Date", "Last Modified", "Elapsed Days", "Days Since Update", "Delete"]),
                 column_config={
                     "No.": st.column_config.NumberColumn("No.", width=38, alignment="center"),
@@ -3334,7 +3349,12 @@ if page == "Dashboard":
                             key="dashboard_company_detail_click"
                         ) if has_company_button else st.column_config.TextColumn("Company", width=205)
                     ),
-                    "Sales Owner": st.column_config.TextColumn("Sales Owner", width=100),
+                    "Sales Owner": (
+                        st.column_config.SelectboxColumn(
+                            "Sales Owner", options=sales_owner_options, required=True, width=110,
+                            help="관리자는 담당자를 선택한 뒤 Save Table Changes를 눌러 저장할 수 있습니다."
+                        ) if can_assign_sales_owner else st.column_config.TextColumn("Sales Owner", width=100)
+                    ),
                     "Company Contact": st.column_config.TextColumn("Company Contact", width=135),
                     "Continent": st.column_config.TextColumn("Continent", width=92),
                     "Country": st.column_config.TextColumn("Country", width=96),
@@ -3436,15 +3456,18 @@ if page == "Dashboard":
                     row.get("Potential") or "Review",
                     canonical_next_action(row.get("Next Action"), row.get("Stage") or "NEW"),
                 )
+                updated_owner = (
+                    "" if row.get("Sales Owner") == "Unassigned" else str(row.get("Sales Owner") or "")
+                ) if can_assign_sales_owner else (old["owner"] or "")
                 previous = (
                     old["distribution_type"] or "Unknown", old["stage"] or "NEW",
                     old["potential"] or "Review", canonical_next_action(old["next_action"], old["stage"] or "NEW"),
                 )
-                if updates != previous:
+                if updates != previous or updated_owner != (old["owner"] or ""):
                     c.execute(
-                        "UPDATE companies SET distribution_type=?, stage=?, potential=?, next_action=?, "
+                        "UPDATE companies SET distribution_type=?, stage=?, potential=?, next_action=?, owner=?, "
                         "last_modified=? WHERE company_id=?",
-                        (*updates, datetime.now().isoformat(timespec="seconds"), company_id)
+                        (*updates, updated_owner, datetime.now().isoformat(timespec="seconds"), company_id)
                     )
                     changed_count += 1
             c.commit()
