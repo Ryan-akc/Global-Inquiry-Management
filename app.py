@@ -2933,7 +2933,7 @@ st.markdown("""
     /* Compact vertical rhythm on Dashboard and Inquiry Input; keep full width. */
     [data-testid="stMainBlockContainer"]:has(.dashboard-hero),
     [data-testid="stMainBlockContainer"]:has(.st-key-reset_inquiry_content) {
-        padding-top: 1rem !important;
+        padding-top: 1.8rem !important;
         padding-bottom: 1rem !important;
     }
     [data-testid="stMainBlockContainer"]:has(.dashboard-hero) [data-testid="stVerticalBlock"],
@@ -2967,10 +2967,13 @@ st.markdown("""
         font-size: .86rem !important;
     }
     [data-testid="stMainBlockContainer"]:has(.dashboard-hero) .dashboard-hero {
-        padding-top: 1rem;
+        padding-top: 1.15rem;
         padding-bottom: .8rem;
-        margin-top: .25rem;
+        margin-top: .4rem;
         margin-bottom: .7rem;
+    }
+    .st-key-dashboard-statistics-period {
+        margin-bottom: .9rem !important;
     }
     [data-testid="stMainBlockContainer"]:has(.dashboard-hero) .dashboard-title {
         font-size: 1.6rem;
@@ -3086,7 +3089,7 @@ if page == "Dashboard":
         default_stats_end = max(today, latest_inquiry_date)
     except (ValueError, TypeError):
         default_stats_end = today
-    with st.container(border=True):
+    with st.container(border=True, key="dashboard-statistics-period"):
         period_label_start = st.session_state.get("dashboard_stats_start", default_stats_start)
         period_label_end = st.session_state.get("dashboard_stats_end", default_stats_end)
         if period_label_start > period_label_end:
@@ -3165,7 +3168,9 @@ if page == "Dashboard":
         (date.today().isoformat(),)
     )
     all_managed_companies = managed_companies
-    search_label_col, search_input_col = st.columns([1, 5], gap="small", vertical_alignment="center")
+    search_label_col, search_input_col, search_actions_col = st.columns(
+        [1, 3.8, 1.8], gap="small", vertical_alignment="center"
+    )
     search_label_col.markdown("**Search company or contact**")
     company_search = search_input_col.text_input(
         "Search company or contact",
@@ -3173,6 +3178,12 @@ if page == "Dashboard":
         label_visibility="collapsed",
         key="dashboard_company_search",
     ).strip()
+    with search_actions_col:
+        _, save_button_col, delete_button_col = st.columns(
+            [.9, 1.15, .95], gap="small", vertical_alignment="center"
+        )
+        save_button_slot = save_button_col.empty()
+        delete_button_slot = delete_button_col.empty()
     previous_search = st.session_state.get("dashboard_company_search_previous", "")
     if company_search != previous_search:
         st.session_state.dashboard_company_page = 1
@@ -3300,9 +3311,13 @@ if page == "Dashboard":
             st.session_state.dashboard_company_page = current_page + 1
             st.rerun()
         edited_records = edited.to_dict("records") if hasattr(edited, "to_dict") else edited
-        action_cols = st.columns([1, 1, 6])
-        save_clicked = action_cols[0].button("Save Table Changes", type="primary", key="dashboard_save_table")
-        delete_clicked = action_cols[1].button("Delete Selected", key="dashboard_delete_selected")
+        save_clicked = save_button_slot.button(
+            "Save Table Changes", type="primary", key="dashboard_save_table",
+            use_container_width=True
+        )
+        delete_clicked = delete_button_slot.button(
+            "Delete Selected", key="dashboard_delete_selected", use_container_width=True
+        )
         if not has_company_button:
             selected_rows = [row for row in edited_records if row.get("Open Detail")]
             if selected_rows:
