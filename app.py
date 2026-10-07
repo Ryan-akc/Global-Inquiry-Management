@@ -3162,23 +3162,23 @@ if page == "Dashboard":
         if period_label_start > period_label_end:
             period_label_start, period_label_end = period_label_end, period_label_start
         st.markdown(
-            '<div class="dashboard-period-label">📅 STATISTICS PERIOD '
-            f'<span style="font-size:.82rem;font-weight:500;letter-spacing:0;text-transform:none">'
+            '<div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;'
+            'gap:.25rem 1rem;margin-bottom:.35rem">'
+            '<span class="dashboard-period-label">📅 STATISTICS PERIOD</span>'
+            f'<span style="font-size:.78rem;color:#667085;font-weight:500">'
             f'[문의일 기준 · {period_label_start:%Y-%m-%d} – {period_label_end:%Y-%m-%d}]</span></div>',
             unsafe_allow_html=True,
         )
-        period_start_label, period_start_col, period_end_label, period_end_col = st.columns(
-            [.35, 1, .25, 1], gap="small", vertical_alignment="center"
+        from_group, to_group = st.columns(2, gap="large", vertical_alignment="center")
+        from_label_col, from_date_col = from_group.columns([.22, 1], gap="small", vertical_alignment="center")
+        to_label_col, to_date_col = to_group.columns([.22, 1], gap="small", vertical_alignment="center")
+        from_label_col.markdown("**From**")
+        stats_start = from_date_col.date_input(
+            "From", value=default_stats_start, key="dashboard_stats_start", label_visibility="collapsed"
         )
-        period_start_label.markdown("**From**")
-        stats_start = period_start_col.date_input(
-            "From", value=default_stats_start, key="dashboard_stats_start",
-            label_visibility="collapsed"
-        )
-        period_end_label.markdown("**To**")
-        stats_end = period_end_col.date_input(
-            "To", value=default_stats_end, key="dashboard_stats_end",
-            label_visibility="collapsed"
+        to_label_col.markdown("**To**")
+        stats_end = to_date_col.date_input(
+            "To", value=default_stats_end, key="dashboard_stats_end", label_visibility="collapsed"
         )
         if stats_start > stats_end:
             stats_start, stats_end = stats_end, stats_start
@@ -3441,14 +3441,14 @@ if page == "Dashboard":
                 )
 
             st.divider()
-            st.markdown("### 🗂️ Company Detail")
+            st.markdown("#### 🗂️ Company Detail")
 
             saved_notice = st.session_state.pop("company_detail_saved_notice", None)
             if saved_notice:
                 st.success(saved_notice)
 
             with st.container(border=True):
-                st.markdown("#### ✏️ Company & Contact Information")
+                st.markdown("##### ✏️ Company & Contact Information")
                 continent_choices = [""] + CONTINENTS
                 current_continent = detail["continent"] or ""
                 if current_continent not in continent_choices:
