@@ -869,6 +869,20 @@ def extract_name(text):
         ):
             return candidate
 
+    # 3.5 "I am Mr. Ibrahim Sara the CEO of our company"
+    m = re.search(
+        r"\bI\s+am\s+(?:(?:Mr|Mrs|Ms|Miss|Dr|Prof)\.?\s+)?"
+        r"([A-Za-zÀ-ÿ'’-]+(?:\s+[A-Za-zÀ-ÿ'’-]+){1,4}?)"
+        r"\s+(?=(?:the\s+)?(?:CEO|CFO|COO|CTO|CMO|"
+        r"chief executive officer|managing director|director|manager)\b)",
+        text,
+        re.I,
+    )
+    if m:
+        candidate = clean_value(m.group(1)).strip()
+        if is_probable_person_name(candidate):
+            return candidate
+
     # 4. Signature
     lines = [
         x.strip()
@@ -878,6 +892,7 @@ def extract_name(text):
 
     closing_words = (
         "best regards",
+        "best regard",
         "kind regards",
         "warm regards",
         "regards",
@@ -894,6 +909,8 @@ def extract_name(text):
 
             signature_candidates = lines[i + 1:i + 6]
             for candidate_index, candidate in enumerate(signature_candidates):
+
+                candidate = re.sub(r"\s*[\{\[\(<].*$", "", candidate).strip()
 
                 candidate = re.sub(
                     r"^(?:Dr|Doctor|Mr|Mrs|Ms|Miss|Prof|Professor)(?:\s*[-.]\s*|\s+)",
@@ -1016,6 +1033,48 @@ def extract_position(text):
     if m:
         return clean_value(m.group(1)).title()
 
+    # Direct English job-title self-identification.
+    direct_title = re.search(
+        r"\bI\s+am\s+(?:the\s+)?"
+        r"(Brand Acquisition Manager|Business Development Officer|"
+        r"Business Development Manager|International Sales Manager|"
+        r"Commercial Director|Sales Director|Commercial Manager|"
+        r"Sales Manager|Export Manager|Purchasing Manager|"
+        r"Managing Director|General Manager|Marketing Manager|"
+        r"Marketing Director|R\s*&\s*D Manager|R&D Manager|"
+        r"Chief Executive Officer|Chief Operating Officer|"
+        r"Chief Marketing Officer|Co-Founder|Founder|CEO|CFO|COO|CTO|CMO|"
+        r"Director|Manager|Officer|Buyer)"
+        r"\s+(?:at|of)\b",
+        text,
+        re.I,
+    )
+    if direct_title:
+        title = clean_value(direct_title.group(1))
+        if title.casefold() in ("ceo", "cfo", "coo", "cto", "cmo"):
+            return title.upper()
+        if re.fullmatch(r"r\s*&\s*d manager", title, re.I):
+            return "R&D Manager"
+        return title.title()
+
+    # Self-identification: "I am Mr. Ibrahim Sara the CEO..."
+    m = re.search(
+        r"\bI\s+am\s+(?:(?:Mr|Mrs|Ms|Miss|Dr|Prof)\.?\s+)?"
+        r"(?:[A-Za-zÀ-ÿ'’-]+\s+){1,5}"
+        r"(?:the\s+)?"
+        r"(chief executive officer|chief operating officer|"
+        r"chief financial officer|managing director|"
+        r"CEO|CFO|COO|CTO|CMO|founder|co-founder|director|manager)"
+        r"\b",
+        text,
+        re.I,
+    )
+    if m:
+        title = clean_value(m.group(1))
+        if title.upper() in ("CEO", "CFO", "COO", "CTO", "CMO"):
+            return title.upper()
+        return title.title()
+
     # ---------------------------------------------------------
     # 2. "I'm NAME, POSITION at COMPANY"
     # ---------------------------------------------------------
@@ -1106,6 +1165,10 @@ def extract_position(text):
             return candidate
 
     # ---------------------------------------------------------
+    # Founder of Company / Co-Founder of Company
+    m = re.search(r"\b(co-founder|founder)\s+of\s+", text, re.I)
+    if m:
+        return "Co-Founder" if m.group(1).lower() == "co-founder" else "Founder"
     # 4. "NAME, POSITION"
     # ---------------------------------------------------------
 
@@ -1136,6 +1199,7 @@ def extract_position(text):
 
     closing_words = (
         "best regards",
+        "best regard",
         "kind regards",
         "warm regards",
         "regards",
@@ -1299,6 +1363,7 @@ def extract_company(text, from_name=""):
 
         # Obvious non-company values
         bad_exact = {
+            "mr", "mr.", "mrs", "mrs.", "ms", "ms.", "miss", "dr", "dr.", "doctor", "prof", "prof.", "professor",
             "our company",
             "our organization",
             "our organisation",
@@ -1454,6 +1519,23 @@ def extract_company(text, from_name=""):
     # 3. LEGAL ENTITY AFTER "AT"
     #
     # Examples:
+    # Preserve legal suffixes in explicit role-at-company introductions.
+    role_company = re.search(
+        r"\b(?:Brand Acquisition Manager|R\s*&\s*D Manager|R&D Manager|"
+        r"Business Development Manager|Sales Manager|Marketing Manager|"
+        r"Export Manager|Managing Director|Founder|Co-Founder)"
+        r"\s+at\s+"
+        r"([A-Z][A-Za-z0-9&.'()\-]*(?:\s+[A-Z][A-Za-z0-9&.'()\-]*){0,5}\s+"
+        + legal_suffix_pattern
+        + r")(?=\s+(?:in|from|for)\b|[,.\n]|$)",
+        clean_text,
+        re.I,
+    )
+    if role_company:
+        candidate = clean_company(role_company.group(1))
+        if candidate:
+            return candidate
+
     # Brand Acquisition Manager at Simpli GmbH in Switzerland
     # R&D Manager at Beautimport Srl, an Italian company
     #
@@ -2084,6 +2166,32 @@ def infer_country(
             match = re.search(r"(?<![A-Za-z])" + re.escape(country) + r"(?![A-Za-z])", value or "", re.I)
             if match:
                 found.append((match.start(), -len(country), country, continent))
+        nationality_aliases = {
+            "Italian": "Italy", "Swiss": "Switzerland",
+            "Spanish": "Spain", "French": "France",
+            "German": "Germany", "Portuguese": "Portugal",
+            "Brazilian": "Brazil", "Turkish": "Turkey",
+            "Russian": "Russia", "Iranian": "Iran",
+            "Qatari": "Qatar", "Moroccan": "Morocco",
+            "Egyptian": "Egypt", "Lithuanian": "Lithuania",
+            "Polish": "Poland", "Dutch": "Netherlands",
+            "Belgian": "Belgium", "Austrian": "Austria",
+            "British": "United Kingdom", "American": "United States",
+        }
+        for adjective, country_name in nationality_aliases.items():
+            if country_name not in COUNTRIES:
+                continue
+            match = re.search(
+                r"(?<![A-Za-z])" + re.escape(adjective) + r"(?![A-Za-z])",
+                value or "",
+                re.I,
+            )
+            if match:
+                found.append((
+                    match.start(), -len(adjective),
+                    country_name, COUNTRIES[country_name]
+                ))
+
         if not found:
             return "", ""
         _, _, country, continent = min(found)
@@ -2122,6 +2230,11 @@ def infer_country(
     country, continent = country_mentioned(location_text)
     if country:
         return country, continent
+
+    # Search explicit country names in the email body.
+    body_country, body_continent = country_mentioned(text or "")
+    if body_country:
+        return body_country, body_continent
 
     subject_country, subject_continent = country_mentioned(extract_subject(text or ""))
     if subject_country:
@@ -2197,83 +2310,46 @@ def infer_country(
 # BUSINESS AREA
 # ============================================================
 
-def infer_business_area(
-    text,
-    company=""
-):
+def infer_business_area(text, company=""):
+    x = (str(text or "") + " " + str(company or "")).lower()
 
-    x = (
-        text + " " + company
-    ).lower()
+    if any(key in x for key in (
+        "vaistin\u0117", "vaistine", "pharmacy", "pharmacies",
+        "drugstore", "drug store", "\uc57d\uad6d", "\uc57d\ud488"
+    )):
+        return "Pharmacy / Retail Pharmacy / Healthcare & Beauty"
 
-    if any(
-        key in x
-        for key in [
-            "vaistinė",
-            "vaistine",
-            "pharmacy",
-            "pharmacies",
-            "drugstore",
-            "drug store"
-        ]
-    ):
+    if any(key in x for key in (
+        "cosmetics", "cosmetic", "beauty", "skincare",
+        "skin care", "skin-care", "makeup", "make-up",
+        "personal care", "\ubdf0\ud2f0", "\ud654\uc7a5\ud488",
+        "\uc2a4\ud0a8\ucf00\uc5b4", "\ud53c\ubd80\uad00\ub9ac",
+        "\uba54\uc774\ud06c\uc5c5"
+    )):
+        return "Beauty / Cosmetics / Skincare"
 
-        return (
-            "Pharmacy / Retail Pharmacy / Healthcare & Beauty"
-        )
-
-    if any(
-        key in x
-        for key in [
-            "cosmetics",
-            "cosmetic",
-            "beauty",
-            "skincare",
-            "skin care"
-        ]
-    ):
-
-        return (
-            "Beauty / Cosmetics / Skincare"
-        )
-
-    if any(
-        key in x
-        for key in [
-            "e-commerce",
-            "ecommerce",
-            "online store",
-            "online shop",
-            "marketplace"
-        ]
-    ):
-
+    if any(key in x for key in (
+        "e-commerce", "ecommerce", "online store",
+        "online shop", "marketplace", "e-shop", "e shop",
+        "\uc628\ub77c\uc778 \uc1fc\ud551\ubab0", "\uc628\ub77c\uc778\ubab0"
+    )):
         return "E-commerce"
 
-    if any(
-        key in x
-        for key in [
-            "distributor",
-            "distribution"
-        ]
-    ):
-
+    if any(key in x for key in (
+        "distributor", "distribution", "wholesaler",
+        "wholesale", "\uc720\ud1b5\uc0ac", "\ub3c4\ub9e4"
+    )):
         return "Distribution"
 
-    if any(
-        key in x
-        for key in [
-            "retailer",
-            "retail"
-        ]
-    ):
-
+    if any(key in x for key in (
+        "retailer", "retail", "department store",
+        "\uc18c\ub9e4\uc810", "\ubc31\ud654\uc810"
+    )):
         return "Retail"
 
     return ""
 
 
-# ============================================================
 # CLASSIFICATION
 # ============================================================
 
@@ -2518,9 +2594,8 @@ def analyze_email(text):
             if company == "Unknown" or re.match(r"(?i)^UAB\b", company):
                 company = normalized_name
     if company and re.search(r"\s" + legal_form + r"$", company, re.I):
+        # Keep the complete legal name in company_name and legal_entity.
         legal_entity = legal_entity or company
-        company = re.sub(r"\s" + legal_form + r"$", "", company, flags=re.I).strip()
-        # A country prefix is sometimes included in a legal/trading name line.
         company = re.sub(r"^(?:Spain|España)\s+", "", company, flags=re.I).strip()
     # Capture a legal entity written with the company, including a leading country label.
     if not legal_entity:
