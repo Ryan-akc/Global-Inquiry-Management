@@ -3353,7 +3353,7 @@ if page == "Dashboard":
         originals = {item["company_id"]: item for item in all_managed_companies}
         company_ids = [item["company_id"] for item in page_companies]
         has_company_button = hasattr(st.column_config, "ButtonColumn")
-        can_assign_sales_owner = st.session_state.get("authenticated_role") == "admin"
+        can_assign_sales_owner = True
         if can_assign_sales_owner:
             active_sales_owners = [
                 str(account["username"])
