@@ -436,9 +436,10 @@ def clear_dashboard_cache():
 
 def scalar(sql, params=()):
     c = db()
-    value = c.execute(sql, params).fetchone()[0]
-    c.close()
-    return value
+    try:
+        return c.execute(sql, params).fetchone()[0]
+    finally:
+        c.close()
 
 
 def add_activity(
