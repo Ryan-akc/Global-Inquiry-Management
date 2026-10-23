@@ -11,6 +11,7 @@ import secrets
 from html import escape as html_escape
 from pathlib import Path
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from urllib.parse import quote_plus
 from email.parser import Parser
 from email.utils import parsedate_to_datetime, parseaddr
@@ -22,6 +23,7 @@ from email.utils import parsedate_to_datetime, parseaddr
 
 BASE = Path(__file__).parent
 DB = Path(os.environ.get("INQUIRY_DB_PATH", str(BASE / "inquiry_manager.db"))).expanduser()
+KST = ZoneInfo("Asia/Seoul")
 
 
 def config_value(name, default=""):
@@ -436,10 +438,9 @@ def clear_dashboard_cache():
 
 def scalar(sql, params=()):
     c = db()
-    try:
-        return c.execute(sql, params).fetchone()[0]
-    finally:
-        c.close()
+    value = c.execute(sql, params).fetchone()[0]
+    c.close()
+    return value
 
 
 def add_activity(
@@ -579,24 +580,24 @@ def unmanaged_days(last_modified):
     try:
         stamp = datetime.fromisoformat(str(last_modified).replace("Z", "+00:00"))
         if stamp.tzinfo:
-            stamp = stamp.astimezone().replace(tzinfo=None)
-        return max(0, (datetime.now() - stamp).days)
+            stamp = stamp.astimezone(KST).replace(tzinfo=None)
+        now = datetime.now(KST).replace(tzinfo=None)
+        return max(0, (now - stamp).days)
     except (TypeError, ValueError):
         return None
 
 
 def format_last_modified(value):
-    """Format timestamps for display without seconds."""
+    """Format timestamps in Korean Standard Time without seconds."""
     if not value:
         return "—"
     try:
         stamp = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         if stamp.tzinfo:
-            stamp = stamp.astimezone()
+            stamp = stamp.astimezone(KST)
         return stamp.strftime("%Y-%m-%d %H:%M")
     except (TypeError, ValueError):
         return str(value).replace("T", " ")[:16]
-
 
 def render_horizontal_count_table(headers, counts):
     """Render a compact, equal-width summary row without dataframe canvas rendering."""
@@ -633,7 +634,7 @@ def save_dashboard_company(company_id, distribution_type, stage, potential):
     c = db()
     c.execute(
         "UPDATE companies SET distribution_type=?, stage=?, potential=?, last_modified=? WHERE company_id=?",
-        (distribution_type, stage, potential, datetime.now().isoformat(timespec="seconds"), company_id)
+        (distribution_type, stage, potential, datetime.now(KST).isoformat(timespec="seconds"), company_id)
     )
     c.commit()
     c.close()
@@ -870,20 +871,6 @@ def extract_name(text):
         ):
             return candidate
 
-    # 3.5 "I am Mr. Ibrahim Sara the CEO of our company"
-    m = re.search(
-        r"\bI\s+am\s+(?:(?:Mr|Mrs|Ms|Miss|Dr|Prof)\.?\s+)?"
-        r"([A-Za-zÀ-ÿ'’-]+(?:\s+[A-Za-zÀ-ÿ'’-]+){1,4}?)"
-        r"\s+(?=(?:the\s+)?(?:CEO|CFO|COO|CTO|CMO|"
-        r"chief executive officer|managing director|director|manager)\b)",
-        text,
-        re.I,
-    )
-    if m:
-        candidate = clean_value(m.group(1)).strip()
-        if is_probable_person_name(candidate):
-            return candidate
-
     # 4. Signature
     lines = [
         x.strip()
@@ -893,7 +880,6 @@ def extract_name(text):
 
     closing_words = (
         "best regards",
-        "best regard",
         "kind regards",
         "warm regards",
         "regards",
@@ -910,8 +896,6 @@ def extract_name(text):
 
             signature_candidates = lines[i + 1:i + 6]
             for candidate_index, candidate in enumerate(signature_candidates):
-
-                candidate = re.sub(r"\s*[\{\[\(<].*$", "", candidate).strip()
 
                 candidate = re.sub(
                     r"^(?:Dr|Doctor|Mr|Mrs|Ms|Miss|Prof|Professor)(?:\s*[-.]\s*|\s+)",
@@ -1034,48 +1018,6 @@ def extract_position(text):
     if m:
         return clean_value(m.group(1)).title()
 
-    # Direct English job-title self-identification.
-    direct_title = re.search(
-        r"\bI\s+am\s+(?:the\s+)?"
-        r"(Brand Acquisition Manager|Business Development Officer|"
-        r"Business Development Manager|International Sales Manager|"
-        r"Commercial Director|Sales Director|Commercial Manager|"
-        r"Sales Manager|Export Manager|Purchasing Manager|"
-        r"Managing Director|General Manager|Marketing Manager|"
-        r"Marketing Director|R\s*&\s*D Manager|R&D Manager|"
-        r"Chief Executive Officer|Chief Operating Officer|"
-        r"Chief Marketing Officer|Co-Founder|Founder|CEO|CFO|COO|CTO|CMO|"
-        r"Director|Manager|Officer|Buyer)"
-        r"\s+(?:at|of)\b",
-        text,
-        re.I,
-    )
-    if direct_title:
-        title = clean_value(direct_title.group(1))
-        if title.casefold() in ("ceo", "cfo", "coo", "cto", "cmo"):
-            return title.upper()
-        if re.fullmatch(r"r\s*&\s*d manager", title, re.I):
-            return "R&D Manager"
-        return title.title()
-
-    # Self-identification: "I am Mr. Ibrahim Sara the CEO..."
-    m = re.search(
-        r"\bI\s+am\s+(?:(?:Mr|Mrs|Ms|Miss|Dr|Prof)\.?\s+)?"
-        r"(?:[A-Za-zÀ-ÿ'’-]+\s+){1,5}"
-        r"(?:the\s+)?"
-        r"(chief executive officer|chief operating officer|"
-        r"chief financial officer|managing director|"
-        r"CEO|CFO|COO|CTO|CMO|founder|co-founder|director|manager)"
-        r"\b",
-        text,
-        re.I,
-    )
-    if m:
-        title = clean_value(m.group(1))
-        if title.upper() in ("CEO", "CFO", "COO", "CTO", "CMO"):
-            return title.upper()
-        return title.title()
-
     # ---------------------------------------------------------
     # 2. "I'm NAME, POSITION at COMPANY"
     # ---------------------------------------------------------
@@ -1166,10 +1108,6 @@ def extract_position(text):
             return candidate
 
     # ---------------------------------------------------------
-    # Founder of Company / Co-Founder of Company
-    m = re.search(r"\b(co-founder|founder)\s+of\s+", text, re.I)
-    if m:
-        return "Co-Founder" if m.group(1).lower() == "co-founder" else "Founder"
     # 4. "NAME, POSITION"
     # ---------------------------------------------------------
 
@@ -1200,7 +1138,6 @@ def extract_position(text):
 
     closing_words = (
         "best regards",
-        "best regard",
         "kind regards",
         "warm regards",
         "regards",
@@ -1364,7 +1301,6 @@ def extract_company(text, from_name=""):
 
         # Obvious non-company values
         bad_exact = {
-            "mr", "mr.", "mrs", "mrs.", "ms", "ms.", "miss", "dr", "dr.", "doctor", "prof", "prof.", "professor",
             "our company",
             "our organization",
             "our organisation",
@@ -1520,23 +1456,6 @@ def extract_company(text, from_name=""):
     # 3. LEGAL ENTITY AFTER "AT"
     #
     # Examples:
-    # Preserve legal suffixes in explicit role-at-company introductions.
-    role_company = re.search(
-        r"\b(?:Brand Acquisition Manager|R\s*&\s*D Manager|R&D Manager|"
-        r"Business Development Manager|Sales Manager|Marketing Manager|"
-        r"Export Manager|Managing Director|Founder|Co-Founder)"
-        r"\s+at\s+"
-        r"([A-Z][A-Za-z0-9&.'()\-]*(?:\s+[A-Z][A-Za-z0-9&.'()\-]*){0,5}\s+"
-        + legal_suffix_pattern
-        + r")(?=\s+(?:in|from|for)\b|[,.\n]|$)",
-        clean_text,
-        re.I,
-    )
-    if role_company:
-        candidate = clean_company(role_company.group(1))
-        if candidate:
-            return candidate
-
     # Brand Acquisition Manager at Simpli GmbH in Switzerland
     # R&D Manager at Beautimport Srl, an Italian company
     #
@@ -2167,32 +2086,6 @@ def infer_country(
             match = re.search(r"(?<![A-Za-z])" + re.escape(country) + r"(?![A-Za-z])", value or "", re.I)
             if match:
                 found.append((match.start(), -len(country), country, continent))
-        nationality_aliases = {
-            "Italian": "Italy", "Swiss": "Switzerland",
-            "Spanish": "Spain", "French": "France",
-            "German": "Germany", "Portuguese": "Portugal",
-            "Brazilian": "Brazil", "Turkish": "Turkey",
-            "Russian": "Russia", "Iranian": "Iran",
-            "Qatari": "Qatar", "Moroccan": "Morocco",
-            "Egyptian": "Egypt", "Lithuanian": "Lithuania",
-            "Polish": "Poland", "Dutch": "Netherlands",
-            "Belgian": "Belgium", "Austrian": "Austria",
-            "British": "United Kingdom", "American": "United States",
-        }
-        for adjective, country_name in nationality_aliases.items():
-            if country_name not in COUNTRIES:
-                continue
-            match = re.search(
-                r"(?<![A-Za-z])" + re.escape(adjective) + r"(?![A-Za-z])",
-                value or "",
-                re.I,
-            )
-            if match:
-                found.append((
-                    match.start(), -len(adjective),
-                    country_name, COUNTRIES[country_name]
-                ))
-
         if not found:
             return "", ""
         _, _, country, continent = min(found)
@@ -2231,11 +2124,6 @@ def infer_country(
     country, continent = country_mentioned(location_text)
     if country:
         return country, continent
-
-    # Search explicit country names in the email body.
-    body_country, body_continent = country_mentioned(text or "")
-    if body_country:
-        return body_country, body_continent
 
     subject_country, subject_continent = country_mentioned(extract_subject(text or ""))
     if subject_country:
@@ -2311,46 +2199,83 @@ def infer_country(
 # BUSINESS AREA
 # ============================================================
 
-def infer_business_area(text, company=""):
-    x = (str(text or "") + " " + str(company or "")).lower()
+def infer_business_area(
+    text,
+    company=""
+):
 
-    if any(key in x for key in (
-        "vaistin\u0117", "vaistine", "pharmacy", "pharmacies",
-        "drugstore", "drug store", "\uc57d\uad6d", "\uc57d\ud488"
-    )):
-        return "Pharmacy / Retail Pharmacy / Healthcare & Beauty"
+    x = (
+        text + " " + company
+    ).lower()
 
-    if any(key in x for key in (
-        "cosmetics", "cosmetic", "beauty", "skincare",
-        "skin care", "skin-care", "makeup", "make-up",
-        "personal care", "\ubdf0\ud2f0", "\ud654\uc7a5\ud488",
-        "\uc2a4\ud0a8\ucf00\uc5b4", "\ud53c\ubd80\uad00\ub9ac",
-        "\uba54\uc774\ud06c\uc5c5"
-    )):
-        return "Beauty / Cosmetics / Skincare"
+    if any(
+        key in x
+        for key in [
+            "vaistinė",
+            "vaistine",
+            "pharmacy",
+            "pharmacies",
+            "drugstore",
+            "drug store"
+        ]
+    ):
 
-    if any(key in x for key in (
-        "e-commerce", "ecommerce", "online store",
-        "online shop", "marketplace", "e-shop", "e shop",
-        "\uc628\ub77c\uc778 \uc1fc\ud551\ubab0", "\uc628\ub77c\uc778\ubab0"
-    )):
+        return (
+            "Pharmacy / Retail Pharmacy / Healthcare & Beauty"
+        )
+
+    if any(
+        key in x
+        for key in [
+            "cosmetics",
+            "cosmetic",
+            "beauty",
+            "skincare",
+            "skin care"
+        ]
+    ):
+
+        return (
+            "Beauty / Cosmetics / Skincare"
+        )
+
+    if any(
+        key in x
+        for key in [
+            "e-commerce",
+            "ecommerce",
+            "online store",
+            "online shop",
+            "marketplace"
+        ]
+    ):
+
         return "E-commerce"
 
-    if any(key in x for key in (
-        "distributor", "distribution", "wholesaler",
-        "wholesale", "\uc720\ud1b5\uc0ac", "\ub3c4\ub9e4"
-    )):
+    if any(
+        key in x
+        for key in [
+            "distributor",
+            "distribution"
+        ]
+    ):
+
         return "Distribution"
 
-    if any(key in x for key in (
-        "retailer", "retail", "department store",
-        "\uc18c\ub9e4\uc810", "\ubc31\ud654\uc810"
-    )):
+    if any(
+        key in x
+        for key in [
+            "retailer",
+            "retail"
+        ]
+    ):
+
         return "Retail"
 
     return ""
 
 
+# ============================================================
 # CLASSIFICATION
 # ============================================================
 
@@ -2560,6 +2485,280 @@ def generate_inquiry_summary(text, subject="", country=""):
     return subject or "Inbound sales inquiry."
 
 
+
+# ============================================================
+# SMART NATURAL-LANGUAGE EXTRACTION V1
+#
+# Existing extract_* functions remain intact. These functions add a
+# candidate + evidence + score layer so the first matching regex does
+# not automatically win.
+# ============================================================
+
+def _smart_candidate_add(bucket, value, score, evidence, source="Email"):
+    value = clean_value(str(value or ""))
+    if not value:
+        return
+    key = re.sub(r"\s+", " ", value).strip().casefold()
+    if not key:
+        return
+    # Merge duplicate candidates while preserving the strongest evidence.
+    for item in bucket:
+        if item["key"] == key:
+            if score > item["score"]:
+                item.update(score=score, evidence=evidence, source=source, value=value)
+            return
+    bucket.append({
+        "key": key,
+        "value": value,
+        "score": score,
+        "evidence": evidence,
+        "source": source,
+    })
+
+
+def _smart_best_candidate(candidates, minimum=50, unknown=""):
+    if not candidates:
+        return unknown, {"value": unknown, "confidence": 0, "evidence": "No candidate found."}
+    ranked = sorted(candidates, key=lambda x: x["score"], reverse=True)
+    best = ranked[0]
+    second = ranked[1]["score"] if len(ranked) > 1 else 0
+    # Require both a meaningful score and a reasonable margin. This is what
+    # prevents a weak guess from replacing Unknown.
+    if best["score"] < minimum:
+        return unknown, {"value": unknown, "confidence": best["score"], "evidence": best["evidence"]}
+    confidence = min(99, max(1, best["score"]))
+    if second and best["score"] - second < 8 and best["score"] < 90:
+        return unknown, {
+            "value": unknown,
+            "confidence": confidence,
+            "evidence": "Ambiguous candidates: " + best["evidence"],
+        }
+    return best["value"], {
+        "value": best["value"],
+        "confidence": confidence,
+        "evidence": best["evidence"],
+        "source": best["source"],
+    }
+
+
+def smart_extract_name(text):
+    candidates = []
+    raw = text or ""
+    normalized = raw.replace("\r\n", "\n").replace("\r", "\n")
+
+    # 1. MIME/header From display name: strongest evidence.
+    try:
+        headers = Parser().parsestr(normalized, headersonly=True)
+        from_display = parseaddr(headers.get("From", ""))[0]
+    except Exception:
+        from_display = ""
+    if from_display and is_probable_person_name(from_display) and not is_generic_sender_name(from_display):
+        _smart_candidate_add(candidates, from_display, 98, "From display name", "Header")
+
+    # 2. Explicit self-identification.
+    patterns = [
+        (r"\bmy\s+name\s+is\s+([A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+(?:\s+[A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+){1,4})\b", 96, "\"My name is ...\""),
+        (r"\bI['’]m\s+([A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+(?:\s+[A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+){1,4})\s*,", 94, "\"I'm NAME, ...\""),
+        (r"\bI\s+am\s+([A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+(?:\s+[A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+){1,4})\s*(?:,|\.|\s+and\s+)", 92, "\"I am NAME ...\""),
+    ]
+    for pattern, score, evidence in patterns:
+        for m in re.finditer(pattern, normalized, re.I):
+            value = clean_value(m.group(1))
+            if is_probable_person_name(value) and not is_generic_sender_name(value):
+                _smart_candidate_add(candidates, value, score, evidence)
+
+    # 3. Signature after a closing.
+    lines = [x.strip() for x in normalized.splitlines() if x.strip()]
+    closing = re.compile(r"^(best regards|kind regards|warm regards|regards|best|sincerely|thanks|thank you|many thanks)\s*[,!:]?$", re.I)
+    for i, line in enumerate(lines):
+        if closing.match(line):
+            for candidate in lines[i + 1:i + 6]:
+                candidate = re.sub(r"^(?:Dr|Doctor|Mr|Mrs|Ms|Miss|Prof|Professor)(?:\s*[-.]\s*|\s+)", "", candidate, flags=re.I).strip()
+                if is_probable_person_name(candidate) and not is_generic_sender_name(candidate):
+                    _smart_candidate_add(candidates, candidate, 88, "Signature name")
+
+    # 4. Existing mature extractor is retained as a fallback candidate.
+    try:
+        legacy = extract_name(normalized)
+    except Exception:
+        legacy = ""
+    if legacy:
+        _smart_candidate_add(candidates, legacy, 82, "Existing rule-based extractor")
+
+    value, meta = _smart_best_candidate(candidates, minimum=60, unknown="")
+    return value
+
+
+def smart_extract_position(text):
+    candidates = []
+    raw = text or ""
+    normalized = raw.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Explicit labels are strongest.
+    for pattern in [
+        r"(?im)^\s*(?:position|title|job title|role)\s*[:\-]\s*([^\n,.;]+)",
+        r"\b(?:my|current)\s+(?:position|role|title)\s+is\s+([^\n,.;]+)",
+    ]:
+        for m in re.finditer(pattern, normalized, re.I):
+            value = clean_value(m.group(1))
+            if is_probable_position(value):
+                _smart_candidate_add(candidates, value, 98, "Explicit position/title field")
+
+    # "I am a commercial strategist based in Brazil"
+    # Also handle "I am the founder of ABC" without swallowing the company.
+    m = re.search(
+        r"\bI\s+am\s+(?:the\s+)?((?:founder|co-founder|owner|ceo|cfo|coo|cto|director|manager|president|partner|commercial strategist|commercial director|sales director|sales manager|marketing manager|business development manager|consultant|buyer|specialist|executive)[^,.\n]{0,60}?)(?=\s+(?:of|at|based|located|working|with|from|in)\b|[,\.\n])",
+        normalized, re.I
+    )
+    if m:
+        value = clean_value(m.group(1))
+        if is_probable_position(value):
+            _smart_candidate_add(candidates, value, 96, "\"I am [the] POSITION ...\"")
+
+    m = re.search(
+        r"\bI\s+am\s+(?:an?\s+)?([^,.\n]{2,80}?)(?=\s+(?:based|located|working|with|from|in)\b|[,\.\n])",
+        normalized, re.I
+    )
+    if m:
+        value = clean_value(m.group(1))
+        if " of " not in value.casefold() and is_probable_position(value):
+            _smart_candidate_add(candidates, value, 96, "\"I am a/an [position] ...\"")
+
+    # "I'm Miguel Alvarenga, Commercial Strategist at ..."
+    m = re.search(
+        r"\bI['’]m\s+[A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+(?:\s+[A-ZÀ-Ý][A-Za-zÀ-ÿ'’.-]+){1,4}\s*,\s*([^,.\n]{2,80}?)(?=\s+at\s+|\s+of\s+|[,\.\n])",
+        normalized, re.I
+    )
+    if m:
+        value = clean_value(m.group(1))
+        if is_probable_position(value):
+            _smart_candidate_add(candidates, value, 96, "\"I'm NAME, POSITION ...\"")
+
+    # Signature: a position directly below the person's name is strong.
+    lines = [x.strip() for x in normalized.splitlines() if x.strip()]
+    closing = re.compile(r"^(best regards|kind regards|warm regards|regards|best|sincerely|thanks|thank you|many thanks)\s*[,!:]?$", re.I)
+    for i, line in enumerate(lines):
+        if closing.match(line):
+            sig = lines[i + 1:i + 7]
+            for j, candidate in enumerate(sig):
+                if is_probable_position(candidate):
+                    score = 88 if j <= 2 else 78
+                    _smart_candidate_add(candidates, clean_value(candidate), score, "Signature position")
+
+    # Existing extractor is retained as fallback.
+    try:
+        legacy = extract_position(normalized)
+    except Exception:
+        legacy = ""
+    if legacy:
+        _smart_candidate_add(candidates, legacy, 82, "Existing rule-based extractor")
+
+    value, meta = _smart_best_candidate(candidates, minimum=60, unknown="")
+    return value
+
+
+def smart_extract_company(text, from_name=""):
+    candidates = []
+    raw = text or ""
+    normalized = raw.replace("\r\n", "\n").replace("\r", "\n")
+
+    def add(value, score, evidence):
+        value = clean_value(value)
+        if not value or value.casefold() == "unknown":
+            return
+
+        # If a regex captured the following sentence after a legal company form
+        # (e.g. "Bimark S.L. We are interested"), cut it at the legal form.
+        legal_cut = re.search(
+            r"(?i)\b(?:S\.?r\.?l\.?|S\.?l\.?|S\.?p\.?A\.?|Ltd\.?|Limited|LLC|Inc\.?|Incorporated|GmbH|Corp\.?|Corporation|S\.A\.?|B\.?V\.?|PLC|Pte\.?\s*Ltd\.?)\b",
+            value,
+        )
+        if legal_cut:
+            value = value[:legal_cut.end()].strip(" ,.;:")
+
+        # Obvious sentence continuation is not a company name.
+        if re.search(r"(?i)\b(?:we|i|our|they|he|she)\s+(?:are|is|have|has|work|currently|would|can|will)\b", value):
+            return
+
+        # Company candidate must not look like a person, a title, a URL, or a sentence.
+        if "@" in value or "http" in value.lower() or len(value.split()) > 10:
+            return
+        if is_probable_position(value) and not re.search(r"\b(?:Ltd|LLC|Inc|GmbH|S\.?r\.?l|S\.A|B\.V|PLC)\b", value, re.I):
+            return
+        _smart_candidate_add(candidates, value, score, evidence)
+
+    # Explicit company fields.
+    for pattern in [
+        r"(?im)^\s*company(?:\s+name)?\s*[:\-]\s*(.+?)\s*$",
+        r"(?im)^\s*(?:organization|organisation)\s*[:\-]\s*(.+?)\s*$",
+    ]:
+        for m in re.finditer(pattern, normalized, re.I):
+            add(m.group(1), 100, "Explicit company/organization field")
+
+    # Strong relationship language.
+    relationship_patterns = [
+        (r"\b(?:founder|co-founder|owner|ceo|cfo|coo|cto|director|manager|president|partner)\s+of\s+([^,.\n]{2,100})", 94, "Role + of COMPANY"),
+        (r"\b(?:representing|on behalf of|working for)\s+([^,.\n]{2,100})", 94, "representing/on behalf of/working for COMPANY"),
+        (r"\b(?:from|at)\s+([A-Z][A-Za-z0-9&.'’()\-]*(?:\s+[A-Z][A-Za-z0-9&.'’()\-]*){0,7}\s+(?:Ltd\.?|Limited|LLC|Inc\.?|GmbH|Corp\.?|Corporation|S\.?r\.?l\.?|S\.?p\.?A\.?|S\.A\.?|B\.V\.?|PLC|Pte\.?\s*Ltd\.))\b", 92, "Company name with legal entity")
+    ]
+    for pattern, score, evidence in relationship_patterns:
+        for m in re.finditer(pattern, normalized, re.I):
+            add(m.group(1), score, evidence)
+
+    # "I am ... at COMPANY" / "POSITION at COMPANY".
+    for pattern, score, evidence in [
+        (r"\b(?:I['’]m|I\s+am)\b.{0,160}?\bat\s+([A-Z][A-Za-z0-9&.'’()\-]*(?:\s+[A-Z][A-Za-z0-9&.'’()\-]*){0,7}(?:\s+(?:Ltd\.?|Limited|LLC|Inc\.?|GmbH|Corp\.?|Corporation|S\.?r\.?l\.?|S\.?p\.?A\.?|S\.A\.?|B\.?V\.?|PLC|Pte\.?\s*Ltd\.?))?)(?=\s+(?:in|from|for|based|we|our|the|and)\b|[.,\n]|$)", 88, "Self-identification + at COMPANY"),
+        (r"\b(?:manager|director|founder|owner|officer|buyer|president|strategist|specialist|consultant)\s+at\s+([A-Z][A-Za-z0-9&.'’()\-]*(?:\s+[A-Z][A-Za-z0-9&.'’()\-]*){0,7})(?=\s+(?:in|from|for|based)\b|[.,\n]|$)", 86, "Position + at COMPANY"),
+    ]:
+        for m in re.finditer(pattern, normalized, re.I):
+            add(m.group(1), score, evidence)
+
+    # Standalone legal entities anywhere in the email.
+    legal = re.compile(
+        r"\b([A-Z][A-Za-z0-9&.'’()\-]*(?:\s+[A-Z][A-Za-z0-9&.'’()\-]*){0,8}\s+(?:S\.?r\.?l\.?|S\.?l\.?|S\.?p\.?A\.?|Ltd\.?|Limited|LLC|Inc\.?|Incorporated|GmbH|Corp\.?|Corporation|S\.A\.?|B\.V\.?|PLC|Pte\.?\s*Ltd\.))\b",
+        re.I
+    )
+    for m in legal.finditer(normalized):
+        add(m.group(1), 90, "Standalone legal entity name")
+
+    # Signature company: after sign-off, skip person's name/title and score the
+    # remaining business-like lines. This is deliberately weaker than explicit text.
+    lines = [x.strip() for x in normalized.splitlines() if x.strip()]
+    closing = re.compile(r"^(best regards|kind regards|warm regards|regards|best|sincerely|thanks|thank you|many thanks)\s*[,!:]?$", re.I)
+    for i, line in enumerate(lines):
+        if closing.match(line):
+            sig = lines[i + 1:i + 7]
+            for candidate in sig:
+                if is_probable_person_name(candidate) or is_probable_position(candidate):
+                    continue
+                if re.search(r"@|https?://|www\.|\+?\d[\d\s().-]{7,}", candidate, re.I):
+                    continue
+                add(candidate, 82, "Business-like signature line")
+
+    # Existing extractor remains a fallback, but it no longer gets automatic priority.
+    try:
+        legacy = extract_company(normalized, from_name=from_name)
+    except Exception:
+        legacy = ""
+    if legacy and legacy != "Unknown":
+        add(legacy, 70, "Existing rule-based extractor")
+
+    # A free Gmail/Outlook/Yahoo local-part is NOT sufficient evidence for a company.
+    value, meta = _smart_best_candidate(candidates, minimum=78, unknown="Unknown")
+    return value
+
+
+def smart_extract_fields(text):
+    """Return the three high-value natural-language fields using scored candidates."""
+    headers = Parser().parsestr(text or "", headersonly=True)
+    sender_name = parseaddr(headers.get("From", ""))[0]
+    return {
+        "contact_name": smart_extract_name(text),
+        "position": smart_extract_position(text),
+        "company_name": smart_extract_company(text, from_name=sender_name),
+    }
+
+
 # ============================================================
 # MASTER EMAIL ANALYZER
 # ============================================================
@@ -2574,11 +2773,12 @@ def analyze_email(text):
 
     message_headers = Parser().parsestr(text or "", headersonly=True)
     sender_name = parseaddr(message_headers.get("From", ""))[0]
-    contact_name = extract_name(text)
+    smart_fields = smart_extract_fields(text)
+    contact_name = smart_fields.get("contact_name", "")
 
-    position = extract_position(text)
+    position = smart_fields.get("position", "")
 
-    company = extract_company(text, from_name=sender_name)
+    company = smart_fields.get("company_name", "Unknown")
     legal_entity = ""
     legal_form = r"(?:S\.?r\.?l\.?|S\.?l\.?|S\.?p\.?A\.?|Ltd\.?|Limited|LLC|Inc\.?|GmbH|S\.?A\.?|B\.?V\.?|PLC|Pte\.?\s*Ltd\.?)"
     # Lithuanian company registrations put the legal form before the name:
@@ -2595,8 +2795,9 @@ def analyze_email(text):
             if company == "Unknown" or re.match(r"(?i)^UAB\b", company):
                 company = normalized_name
     if company and re.search(r"\s" + legal_form + r"$", company, re.I):
-        # Keep the complete legal name in company_name and legal_entity.
         legal_entity = legal_entity or company
+        company = re.sub(r"\s" + legal_form + r"$", "", company, flags=re.I).strip()
+        # A country prefix is sometimes included in a legal/trading name line.
         company = re.sub(r"^(?:Spain|España)\s+", "", company, flags=re.I).strip()
     # Capture a legal entity written with the company, including a leading country label.
     if not legal_entity:
@@ -3310,21 +3511,27 @@ if page == "Dashboard":
     managed_companies = dashboard_companies(date.today().isoformat())
     all_managed_companies = managed_companies
     search_label_col, search_input_col, search_actions_col = st.columns(
-        [1, 3.8, 1.8], gap="small", vertical_alignment="center"
+        [1, 3.8, 2.8], gap="small", vertical_alignment="center"
     )
     search_label_col.markdown("**Search company or contact**")
-    company_search = search_input_col.text_input(
+    search_input = search_input_col.text_input(
         "Search company or contact",
         placeholder="Enter part of a company or contact name",
         label_visibility="collapsed",
-        key="dashboard_company_search",
+        key="dashboard_company_search_input",
     ).strip()
-    with search_actions_col:
-        _, save_button_col, delete_button_col = st.columns(
-            [.9, 1.15, .95], gap="small", vertical_alignment="center"
-        )
-        save_button_slot = save_button_col.empty()
-        delete_button_slot = delete_button_col.empty()
+    search_button_col, save_button_col, delete_button_col = search_actions_col.columns(
+        [1.0, 1.35, 1.15], gap="small", vertical_alignment="center"
+    )
+    search_clicked = search_button_col.button("SEARCH", key="dashboard_company_search_button", use_container_width=True)
+    if "dashboard_company_search_applied" not in st.session_state:
+        st.session_state.dashboard_company_search_applied = ""
+    if search_clicked:
+        st.session_state.dashboard_company_search_applied = search_input
+        st.session_state.dashboard_company_page = 1
+    company_search = st.session_state.dashboard_company_search_applied
+    save_button_slot = save_button_col.empty()
+    delete_button_slot = delete_button_col.empty()
     previous_search = st.session_state.get("dashboard_company_search_previous", "")
     if company_search != previous_search:
         st.session_state.dashboard_company_page = 1
@@ -3336,9 +3543,10 @@ if page == "Dashboard":
             if search_term in (item["company_name"] or "").casefold()
             or search_term in (item["contact_name"] or "").casefold()
         ]
+    managed_companies.sort(key=lambda item: (bool(item.get("inquiry_date")), str(item.get("inquiry_date") or "")), reverse=True)
     if managed_companies:
         total_companies = len(managed_companies)
-        page_size_options = [10, 25, 50, 100]
+        page_size_options = [10, 25, 50, 100, 500, 1000]
         page_size = st.session_state.get("dashboard_company_page_size", page_size_options[0])
         if page_size not in page_size_options:
             page_size = page_size_options[0]
@@ -3543,7 +3751,7 @@ if page == "Dashboard":
                     c.execute(
                         "UPDATE companies SET distribution_type=?, stage=?, potential=?, next_action=?, owner=?, "
                         "last_modified=? WHERE company_id=?",
-                        (*updates, updated_owner, datetime.now().isoformat(timespec="seconds"), company_id)
+                        (*updates, updated_owner, datetime.now(KST).isoformat(timespec="seconds"), company_id)
                     )
                     changed_count += 1
             c.commit()
@@ -3632,7 +3840,7 @@ if page == "Dashboard":
                                 clean_value(edited_website), edited_business_type, clean_value(edited_business_area),
                                 edited_inquiry_type, clean_value(edited_contact_name), clean_value(edited_position),
                                 clean_email, clean_value(edited_phone), clean_value(edited_summary), clean_value(edited_remarks),
-                                datetime.now().isoformat(timespec="seconds"), detail_id,
+                                datetime.now(KST).isoformat(timespec="seconds"), detail_id,
                             ),
                         )
                         c.commit()
@@ -4068,7 +4276,7 @@ elif page == "Inquiry Input":
                             "remarks": final.get("remarks", ""),
                             "original_email": extracted.get("original_email", ""),
                             "created_at": datetime.now().isoformat(),
-                            "last_modified": datetime.now().isoformat(timespec="seconds"),
+                            "last_modified": datetime.now(KST).isoformat(timespec="seconds"),
                             "email_extraction_json": json.dumps(extracted, ensure_ascii=False, default=str),
                             "research_json": json.dumps(research, ensure_ascii=False, default=str),
                             "mapping_json": json.dumps(st.session_state.get("v5_mapping", {}), ensure_ascii=False, default=str),
