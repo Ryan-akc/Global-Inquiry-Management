@@ -3495,14 +3495,16 @@ if page == "Dashboard":
         stats_end_text = stats_end.isoformat()
 
     stage_counts, continent_summary = dashboard_metrics(stats_start_text, stats_end_text)
-    stage_summary = {stage_name: stage_counts.get(stage_name, 0) for stage_name in STAGES}
+    total_inquiries = sum(stage_counts.values())
+    stage_summary = {"TOTAL INQUIRIES": total_inquiries, **{stage_name: stage_counts.get(stage_name, 0) for stage_name in STAGES}}
+    continent_summary_with_total = {"TOTAL INQUIRIES": total_inquiries, **continent_summary}
     with st.container(border=True):
         st.markdown("#### 📈 Inquiries by Stage")
-        render_horizontal_count_table(STAGES, stage_summary)
+        render_horizontal_count_table(["TOTAL INQUIRIES"] + STAGES, stage_summary)
 
     with st.container(border=True):
         st.markdown("#### 🌍 By Continent")
-        render_horizontal_count_table(CONTINENTS + ["Unknown"], continent_summary)
+        render_horizontal_count_table(["TOTAL INQUIRIES"] + CONTINENTS + ["Unknown"], continent_summary_with_total)
 
     st.divider()
     st.markdown("#### 🏢 Company Management")
