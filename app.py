@@ -392,31 +392,63 @@ def dashboard_date_bounds():
 
 
 @st.cache_data(ttl=5, show_spinner=False)
-def dashboard_companies(today_text):
+def dashboard_filter_options():
+    result = rows(
+        "SELECT DISTINCT "
+        "COALESCE(NULLIF(TRIM(continent),''),'Unknown') AS continent, "
+        "COALESCE(NULLIF(TRIM(country),''),'Unknown') AS country "
+        "FROM companies ORDER BY continent, country"
+    )
+    return [
+        dict(row._mapping) if isinstance(row, CompatRow) else dict(row)
+        for row in result
+    ]
+
+
+@st.cache_data(ttl=5, show_spinner=False)
+def dashboard_companies(today_text, start_date, end_date, continent_filter="All", country_filter="All"):
+    where = ["inquiry_date BETWEEN ? AND ?"]
+    params = [start_date, end_date]
+    if continent_filter != "All":
+        where.append("COALESCE(NULLIF(TRIM(continent),''),'Unknown') = ?")
+        params.append(continent_filter)
+    if country_filter != "All":
+        where.append("COALESCE(NULLIF(TRIM(country),''),'Unknown') = ?")
+        params.append(country_filter)
+    params.append(today_text)
     result = rows(
         "SELECT company_id, company_name, contact_name, continent, country, distribution_type, stage, potential, "
         "next_action, inquiry_date, last_modified, owner "
-        "FROM companies ORDER BY "
+        "FROM companies WHERE " + " AND ".join(where) + " ORDER BY "
         "CASE WHEN next_action_date<>'' AND next_action_date<=? "
         "AND stage NOT IN ('DEAL CLOSING','LOST','REJECTED') THEN 0 ELSE 1 END, "
         "next_action_date, lower(company_name)",
-        (today_text,),
+        tuple(params),
     )
     return [dict(row._mapping) if isinstance(row, CompatRow) else dict(row) for row in result]
 
 
 @st.cache_data(ttl=5, show_spinner=False)
-def dashboard_metrics(start_date, end_date):
+def dashboard_metrics(start_date, end_date, continent_filter="All", country_filter="All"):
+    where = "inquiry_date BETWEEN ? AND ?"
+    filter_params = [start_date, end_date]
+    if continent_filter != "All":
+        where += " AND COALESCE(NULLIF(TRIM(continent),''),'Unknown') = ?"
+        filter_params.append(continent_filter)
+    if country_filter != "All":
+        where += " AND COALESCE(NULLIF(TRIM(country),''),'Unknown') = ?"
+        filter_params.append(country_filter)
+    params = tuple(filter_params + filter_params)
     c = db()
     try:
         result = c.execute(
             "SELECT 'stage' AS metric, COALESCE(NULLIF(stage,''),'NEW') AS label, COUNT(*) AS inquiry "
-            "FROM companies WHERE inquiry_date BETWEEN ? AND ? GROUP BY COALESCE(NULLIF(stage,''),'NEW') "
+            "FROM companies WHERE " + where + " GROUP BY COALESCE(NULLIF(stage,''),'NEW') "
             "UNION ALL "
             "SELECT 'continent' AS metric, COALESCE(NULLIF(continent,''),'Unknown') AS label, COUNT(*) AS inquiry "
-            "FROM companies WHERE inquiry_date BETWEEN ? AND ? "
+            "FROM companies WHERE " + where + " "
             "GROUP BY COALESCE(NULLIF(continent,''),'Unknown')",
-            (start_date, end_date, start_date, end_date),
+            params,
         ).fetchall()
         stage_counts = {
             row["label"]: row["inquiry"] for row in result if row["metric"] == "stage"
@@ -433,6 +465,7 @@ def dashboard_metrics(start_date, end_date):
 
 def clear_dashboard_cache():
     dashboard_date_bounds.clear()
+    dashboard_filter_options.clear()
     dashboard_companies.clear()
     dashboard_metrics.clear()
 
@@ -3494,7 +3527,35 @@ if page == "Dashboard":
         stats_start_text = stats_start.isoformat()
         stats_end_text = stats_end.isoformat()
 
-    stage_counts, continent_summary = dashboard_metrics(stats_start_text, stats_end_text)
+        filter_records = dashboard_filter_options()
+        continent_values = sorted({item["continent"] for item in filter_records}, key=str.casefold)
+        continent_options = ["All"] + continent_values
+        continent_col, country_col = st.columns(2, gap="small")
+        selected_continent = continent_col.selectbox(
+            "Continent",
+            options=continent_options,
+            key="dashboard_continent_filter",
+        )
+        country_values = sorted(
+            {
+                item["country"]
+                for item in filter_records
+                if selected_continent == "All" or item["continent"] == selected_continent
+            },
+            key=str.casefold,
+        )
+        country_options = ["All"] + country_values
+        if st.session_state.get("dashboard_country_filter", "All") not in country_options:
+            st.session_state["dashboard_country_filter"] = "All"
+        selected_country = country_col.selectbox(
+            "Country",
+            options=country_options,
+            key="dashboard_country_filter",
+        )
+
+    stage_counts, continent_summary = dashboard_metrics(
+        stats_start_text, stats_end_text, selected_continent, selected_country
+    )
     total_inquiries = sum(stage_counts.values())
     stage_summary = {"TOTAL INQUIRIES": total_inquiries, **{stage_name: stage_counts.get(stage_name, 0) for stage_name in STAGES}}
     continent_summary_with_total = {"TOTAL INQUIRIES": total_inquiries, **continent_summary}
@@ -3512,7 +3573,13 @@ if page == "Dashboard":
     deleted_names = st.session_state.pop("dashboard_deleted_notice", None)
     if deleted_names:
         st.success(f"Deleted inquiries: {deleted_names}")
-    managed_companies = dashboard_companies(date.today().isoformat())
+    managed_companies = dashboard_companies(
+        date.today().isoformat(),
+        stats_start_text,
+        stats_end_text,
+        selected_continent,
+        selected_country,
+    )
     all_managed_companies = managed_companies
     search_label_col, search_input_col, search_actions_col = st.columns(
         [1, 3.8, 2.8], gap="small", vertical_alignment="center"
