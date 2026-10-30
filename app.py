@@ -3199,14 +3199,14 @@ def authenticate_user():
         with st.container(border=True):
             st.markdown("<div style='color:#b54766;font-size:0.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:.35rem'>MARY &amp; MAY · GLOBAL SALES</div>", unsafe_allow_html=True)
             st.markdown("## 🌎 Global Inquiry Manager")
-            st.caption("팀 계정으로 로그인하세요")
+            st.caption("Please sign in with your team account.")
             if scalar("SELECT COUNT(*) FROM users") == 0:
-                st.warning("관리자 계정이 아직 설정되지 않았습니다. 서버 계정 설정 후 앱을 다시 시작하세요.")
+                st.warning("The administrator account has not been configured. Please configure the server account and restart the app.")
 
             with st.form("team_sign_in"):
-                username = st.text_input("User ID", placeholder="아이디 입력")
-                password = st.text_input("Password", type="password", placeholder="비밀번호 입력")
-                submitted = st.form_submit_button("로그인", type="primary")
+                username = st.text_input("User ID", placeholder="Enter your user ID")
+                password = st.text_input("Password", type="password", placeholder="Enter your password")
+                submitted = st.form_submit_button("Sign In", type="primary")
     if submitted:
         user = rows(
             "SELECT username, salt, password_hash, role FROM users WHERE lower(username)=? AND is_active=1",
@@ -3507,7 +3507,7 @@ if page == "Dashboard":
             'gap:.25rem 1rem;margin-bottom:.35rem">'
             '<span class="dashboard-period-label">📅 STATISTICS PERIOD</span>'
             f'<span style="font-size:.78rem;color:#667085;font-weight:500">'
-            f'[문의일 기준 · {period_label_start:%Y-%m-%d} – {period_label_end:%Y-%m-%d}]</span></div>',
+            f'[Based on inquiry date · {period_label_start:%Y-%m-%d} – {period_label_end:%Y-%m-%d}]</span></div>',
             unsafe_allow_html=True,
         )
         from_group, to_group = st.columns(2, gap="large", vertical_alignment="center")
@@ -3523,7 +3523,7 @@ if page == "Dashboard":
         )
         if stats_start > stats_end:
             stats_start, stats_end = stats_end, stats_start
-            st.info("시작일이 종료일보다 늦어 두 날짜를 순서대로 적용했습니다.")
+            st.info("The start date was later than the end date. The dates have been automatically reordered.")
         stats_start_text = stats_start.isoformat()
         stats_end_text = stats_end.isoformat()
 
@@ -3569,7 +3569,7 @@ if page == "Dashboard":
 
     st.divider()
     st.markdown("#### 🏢 Company Management")
-    st.caption("회사명을 클릭하면 상세 정보가 아래에 표시됩니다. 삭제할 문의는 표 오른쪽 끝의 Delete 체크박스로 선택하세요.")
+    st.caption("Click a company name to view its details below. To delete inquiries, select the Delete checkbox at the far right of the table.")
     deleted_names = st.session_state.pop("dashboard_deleted_notice", None)
     if deleted_names:
         st.success(f"Deleted inquiries: {deleted_names}")
@@ -3707,7 +3707,7 @@ if page == "Dashboard":
                     "Sales Owner": (
                         st.column_config.SelectboxColumn(
                             "Sales Owner", options=sales_owner_options, required=True, width=110,
-                            help="관리자는 담당자를 선택한 뒤 Save Table Changes를 눌러 저장할 수 있습니다."
+                            help="Administrators can select an owner and click Save Table Changes to save."
                         ) if can_assign_sales_owner else st.column_config.TextColumn("Sales Owner", width=100)
                     ),
                     "Company Contact": st.column_config.TextColumn("Company Contact", width=135),
@@ -3771,13 +3771,13 @@ if page == "Dashboard":
                 st.session_state.dashboard_pending_delete_ids = selected_delete_ids
                 st.rerun()
             else:
-                st.warning("삭제할 업체의 체크박스를 먼저 선택하세요.")
+                st.warning("Please select the checkbox for the company you want to delete.")
 
         pending_delete_ids = st.session_state.get("dashboard_pending_delete_ids", [])
         pending_delete_ids = [company_id for company_id in pending_delete_ids if company_id in originals]
         if pending_delete_ids:
             pending_names = [originals[company_id]["company_name"] or f"Inquiry {company_id}" for company_id in pending_delete_ids]
-            st.warning(f"선택한 {len(pending_delete_ids)}개 문의와 관련 활동 기록을 삭제할까요? 이 작업은 되돌릴 수 없습니다.\n\n" + ", ".join(pending_names))
+            st.warning(f"Delete {len(pending_delete_ids)} selected inquiries and their related activity records? This action cannot be undone.\n\n" + ", ".join(pending_names))
             confirm_col, cancel_col = st.columns(2)
             if confirm_col.button("Confirm Delete", type="primary", key="dashboard_confirm_delete"):
                 c = db()
@@ -4050,21 +4050,24 @@ if page == "Dashboard":
 
 elif page == "Inquiry Input":
 
-    st.subheader("📥 새 문의 등록")
-    st.button("내용 재작성", key="reset_inquiry_content", on_click=reset_inquiry_form)
+    title_col, reset_col = st.columns([4, 1], vertical_alignment="center")
+    with title_col:
+        st.subheader("📥 New Inquiry")
+    with reset_col:
+        st.button("Reset Form", key="reset_inquiry_content", on_click=reset_inquiry_form, use_container_width=True)
 
-    st.caption("이메일 분석 → 필요한 경우 업체 정보 조사 → 추출값 확인 및 등록")
+    st.caption("Analyze the email → Research the company if needed → Review extracted details and register")
 
     email_text = st.text_area(
-        "이메일 원문",
+        "Original Email",
         height=175,
         key="v5_email_original",
         placeholder="Paste the complete email here..."
     )
 
-    if st.button("🔎 이메일 분석", type="primary", use_container_width=True):
+    if st.button("🔎 Analyze Email", type="primary", use_container_width=True):
         if not email_text.strip():
-            st.warning("메일 원문을 입력하세요.")
+            st.warning("Please enter the original email.")
         else:
             extracted = analyze_email(email_text)
             extracted.update({
@@ -4091,11 +4094,11 @@ elif page == "Inquiry Input":
     extracted = st.session_state.get("v5_extracted")
 
     if extracted:
-        with st.expander("자동 추출 정보 확인", expanded=False):
+        with st.expander("Review Extracted Information", expanded=False):
             if extracted.get("company_name"):
                 st.success(f"Company detected: **{extracted['company_name']}**")
             else:
-                st.warning("회사명을 자동으로 확인하지 못했습니다.")
+                st.warning("The company name could not be identified automatically.")
 
             # Keep the primary identity fields together across the page width.
             ec1, ec2, ec3, ec4 = st.columns(4, gap="small")
@@ -4120,9 +4123,9 @@ elif page == "Inquiry Input":
 
             st.text_area("Inquiry Summary", extracted.get("inquiry_summary", ""), height=75, disabled=True)
 
-        with st.expander("선택 조사 · 업체 정보 보완", expanded=False):
-            st.caption("조사 결과가 없으면 비워 두세요. 입력한 조사값은 이메일 추출값보다 우선합니다.")
-            st.caption("Email에서 추출된 값과 별도로 실제 업체 조사 결과를 입력합니다.")
+        with st.expander("Optional Research · Company Information", expanded=False):
+            st.caption("Leave blank if no research results are available. Research values take priority over information extracted from the email.")
+            st.caption("Enter verified company research separately from the information extracted from the email.")
             st.markdown(f"**Research Target: {extracted.get('company_name') or 'Unknown'}**")
 
             links = search_urls(
@@ -4194,10 +4197,10 @@ elif page == "Inquiry Input":
             st.session_state.v5_researched = research.get("research_status") != "Not Started" or bool(research.get("research_notes"))
 
         st.divider()
-        st.subheader("2. 등록 정보 제안")
-        st.caption("이메일과 조사 결과를 비교해 등록할 값을 제안합니다. AI 키가 없으면 규칙 기반으로 처리합니다.")
+        st.subheader("2. Registration Suggestions")
+        st.caption("Compare the email and research results to suggest registration values. Rule-based processing is used when no AI key is available.")
 
-        if st.button("이메일·조사 정보 반영", type="primary", use_container_width=True):
+        if st.button("Apply Email & Research Data", type="primary", use_container_width=True):
             mapping = rule_based_mapping(extracted, research)
             st.session_state.v5_mapping = mapping
             st.session_state.v5_mapping_status = "Rule-based comparison"
@@ -4210,7 +4213,7 @@ elif page == "Inquiry Input":
 
         if st.session_state.get("v5_mapped"):
             status = st.session_state.get("v5_mapping_status", "Rule-based mapping")
-            st.caption("Research 값이 있으면 우선 적용하고, 비어 있으면 이메일 추출값을 사용합니다.")
+            st.caption("Research values take priority. If a research value is blank, the information extracted from the email is used.")
 
             mapping = st.session_state.get("v5_mapping", {})
             table = []
@@ -4225,11 +4228,11 @@ elif page == "Inquiry Input":
                     "Confidence": item.get("confidence", "Low"),
                     "Reason": item.get("reason", "")
                 })
-            with st.expander("Email / Research 비교 세부 정보", expanded=False):
+            with st.expander("Email / Research Comparison Details", expanded=False):
                 st.dataframe(table, use_container_width=True, hide_index=True)
 
             st.divider()
-            st.subheader("3. 최종 확인")
+            st.subheader("3. Final Review")
             final = dict(st.session_state.get("v5_final", {}))
             fc1, fc2, fc3, fc4 = st.columns(4, gap="small")
             company_default = final.get("company_name") or extracted.get("company_name", "Unknown") or "Unknown"
@@ -4287,16 +4290,16 @@ elif page == "Inquiry Input":
             st.session_state.v5_final = final
 
             st.divider()
-            st.subheader("4. 등록")
-            st.caption("아래 확인된 값으로 문의를 등록합니다.")
+            st.subheader("4. Register Inquiry")
+            st.caption("Register the inquiry using the verified information below.")
 
             if st.button("✅ Confirm & Register", type="primary", use_container_width=True):
                 company_name = clean_value(final.get("company_name", ""))
                 email = clean_value(final.get("email", ""))
                 if not company_name:
-                    st.error("Company 정보를 입력하세요.")
+                    st.error("Please enter the company name.")
                 elif not email:
-                    st.error("Email 정보를 확인하세요.")
+                    st.error("Please check the email address.")
                 else:
                     # "Unknown" is a placeholder, not a real company identity.
                     # Do not treat it as a company-name duplicate. Email is still
@@ -4314,7 +4317,7 @@ elif page == "Inquiry Input":
                         """, (email, company_name))
                     if dup:
                         st.warning(f"Possible existing company: {dup[0]['company_name']} (ID {dup[0]['company_id']}).")
-                        st.info("중복 가능성이 있으므로 현재 등록을 중단했습니다.")
+                        st.info("Registration has been stopped because a possible duplicate was found.")
                     else:
                         record = {
                             "company_name": company_name,
@@ -4373,7 +4376,7 @@ elif page == "Inquiry Input":
                         st.rerun()
 
         else:
-            st.info("위에서 이메일·조사 정보를 반영하면 등록 항목을 확인할 수 있습니다. 업체 조사는 선택 사항입니다.")
+            st.info("Apply the email and research data above to review the registration fields. Company research is optional.")
 
 
 # ============================================================
