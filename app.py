@@ -3581,26 +3581,42 @@ if page == "Dashboard":
         selected_country,
     )
     all_managed_companies = managed_companies
-    search_label_col, search_input_col, search_actions_col = st.columns(
-        [1, 3.8, 2.8], gap="small", vertical_alignment="center"
+    st.markdown("**Search company or contact**")
+    search_input_col, search_button_col, clear_button_col, save_button_col, delete_button_col = st.columns(
+        [4.6, 0.9, 0.8, 2.0, 1.7], gap="small", vertical_alignment="center"
     )
-    search_label_col.markdown("**Search company or contact**")
+
+    def apply_dashboard_company_search():
+        st.session_state["dashboard_company_search_applied"] = st.session_state.get("dashboard_company_search_input", "").strip()
+        st.session_state["dashboard_company_page"] = 1
+
+    def clear_dashboard_company_search():
+        st.session_state["dashboard_company_search_input"] = ""
+        st.session_state["dashboard_company_search_applied"] = ""
+        st.session_state["dashboard_company_page"] = 1
+
     search_input = search_input_col.text_input(
         "Search company or contact",
         placeholder="Enter part of a company or contact name",
         label_visibility="collapsed",
         key="dashboard_company_search_input",
+        on_change=apply_dashboard_company_search,
     ).strip()
-    search_button_col, save_button_col, delete_button_col = search_actions_col.columns(
-        [1.0, 1.35, 1.15], gap="small", vertical_alignment="center"
+    search_clicked = search_button_col.button(
+        "SEARCH", key="dashboard_company_search_button", use_container_width=True
     )
-    search_clicked = search_button_col.button("SEARCH", key="dashboard_company_search_button", use_container_width=True)
+    clear_button_col.button(
+        "CLEAR", key="clear_dashboard_company_search_button",
+        help="Clear search and show all companies",
+        on_click=clear_dashboard_company_search, use_container_width=True,
+    )
     if "dashboard_company_search_applied" not in st.session_state:
         st.session_state.dashboard_company_search_applied = ""
     if search_clicked:
         st.session_state.dashboard_company_search_applied = search_input
         st.session_state.dashboard_company_page = 1
     company_search = st.session_state.dashboard_company_search_applied
+
     save_button_slot = save_button_col.empty()
     delete_button_slot = delete_button_col.empty()
     previous_search = st.session_state.get("dashboard_company_search_previous", "")
@@ -4038,7 +4054,7 @@ if page == "Dashboard":
                 else:
                     st.caption("No activity has been recorded yet.")
     else:
-        if company_search and all_managed_companies:
+        if company_search:
             st.info(f"No company or contact matches “{company_search}”. Try a shorter part of the name.")
         else:
             st.info("No companies to manage yet.")
