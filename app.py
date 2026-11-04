@@ -382,7 +382,7 @@ def rows(sql, params=()):
     return result
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def dashboard_date_bounds():
     result = rows(
         "SELECT MIN(NULLIF(inquiry_date,'')) AS first_date, "
@@ -391,7 +391,7 @@ def dashboard_date_bounds():
     return result[0]["first_date"], result[0]["last_date"]
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def dashboard_filter_options():
     result = rows(
         "SELECT DISTINCT "
@@ -405,7 +405,7 @@ def dashboard_filter_options():
     ]
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def dashboard_companies(today_text, start_date, end_date, continent_filter="All", country_filter="All"):
     where = ["inquiry_date BETWEEN ? AND ?"]
     params = [start_date, end_date]
@@ -428,7 +428,7 @@ def dashboard_companies(today_text, start_date, end_date, continent_filter="All"
     return [dict(row._mapping) if isinstance(row, CompatRow) else dict(row) for row in result]
 
 
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def dashboard_metrics(start_date, end_date, continent_filter="All", country_filter="All"):
     where = "inquiry_date BETWEEN ? AND ?"
     filter_params = [start_date, end_date]
