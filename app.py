@@ -54,6 +54,7 @@ CONTINENTS = [
 STAGES = [
     "NEW",
     "1ST RESPONSE",
+    "MEETING",
     "2ND RESPONSE",
     "QUALIFICATION",
     "QUOTATION",
@@ -103,13 +104,14 @@ def canonical_next_action(value, fallback="NEW"):
     return fallback if fallback in STAGES else "NEW"
 
 POTENTIALS = [
-    "Review",
-    "A",
-    "B",
-    "C",
-    "D",
-    "Unqualified"
+    "OP",
+    "AP",
+    "TP",
+    "PP",
+    "BP",
+    "NP"
 ]
+POTENTIAL_OPTIONS = ["TBD"] + POTENTIALS
 
 BUSINESS_TYPES = [
     "Distributor",
@@ -3685,7 +3687,7 @@ if page == "Dashboard":
                 "Country": item["country"] or "Unknown",
                 "Distribution": item["distribution_type"] if item["distribution_type"] in DISTRIBUTION_TYPES else "Unknown",
                 "Stage": item["stage"] if item["stage"] in STAGES else "NEW",
-                "Potential": item["potential"] if item["potential"] in POTENTIALS else "Review",
+                "Potential": item["potential"] if item["potential"] in POTENTIAL_OPTIONS else "TBD",
                 "Next Action": canonical_next_action(
                     item["next_action"], item["stage"] if item["stage"] in STAGES else "NEW"
                 ),
@@ -3731,7 +3733,7 @@ if page == "Dashboard":
                     "Country": st.column_config.TextColumn("Country", width=96),
                     "Distribution": st.column_config.SelectboxColumn("Distribution", options=DISTRIBUTION_TYPES, required=True, width=98),
                     "Stage": st.column_config.SelectboxColumn("Stage", options=STAGES, required=True, width=96),
-                    "Potential": st.column_config.SelectboxColumn("Potential", options=POTENTIALS, required=True, width=78),
+                    "Potential": st.column_config.SelectboxColumn("Potential", options=POTENTIAL_OPTIONS, required=True, width=78),
                     "Next Action": st.column_config.SelectboxColumn(
                         "Next Action", options=STAGES, required=False, width=104
                     ),
@@ -3824,7 +3826,7 @@ if page == "Dashboard":
                 updates = (
                     row.get("Distribution") or "Unknown",
                     row.get("Stage") or "NEW",
-                    row.get("Potential") or "Review",
+                    row.get("Potential") or "TBD",
                     canonical_next_action(row.get("Next Action"), row.get("Stage") or "NEW"),
                 )
                 updated_owner = (
@@ -3832,7 +3834,7 @@ if page == "Dashboard":
                 ) if can_assign_sales_owner else (old["owner"] or "")
                 previous = (
                     old["distribution_type"] or "Unknown", old["stage"] or "NEW",
-                    old["potential"] or "Review", canonical_next_action(old["next_action"], old["stage"] or "NEW"),
+                    old["potential"] or "TBD", canonical_next_action(old["next_action"], old["stage"] or "NEW"),
                 )
                 if updates != previous or updated_owner != (old["owner"] or ""):
                     c.execute(
@@ -3943,7 +3945,7 @@ if page == "Dashboard":
                     management_rows = [
                         ("Distribution", detail["distribution_type"] or "Unknown"),
                         ("Stage", detail["stage"] or "NEW"),
-                        ("Potential", detail["potential"] or "Review"),
+                        ("Potential", detail["potential"] or "TBD"),
                         ("Next Action", detail["next_action"] or "—"),
                         ("Next Action Date", detail["next_action_date"] or "—"),
                         ("Inquiry Date", detail["inquiry_date"] or "—"),
@@ -4087,7 +4089,7 @@ elif page == "Inquiry Input":
         else:
             extracted = analyze_email(email_text)
             extracted.update({
-                "potential": "Review",
+                "potential": "TBD",
                 "stage": "NEW",
                 "owner": "",
                 "next_action": "QUALIFICATION",
@@ -4272,7 +4274,7 @@ elif page == "Inquiry Input":
             fc13, fc14, fc15, fc16 = st.columns(4, gap="small")
             current_distribution = final.get("distribution_type", extracted.get("distribution_type", "Unknown"))
             final["distribution_type"] = fc13.selectbox("FINAL — Distribution", DISTRIBUTION_TYPES, index=DISTRIBUTION_TYPES.index(current_distribution) if current_distribution in DISTRIBUTION_TYPES else 0, key="v5_final_distribution")
-            final["potential"] = fc14.selectbox("Potential", POTENTIALS, index=POTENTIALS.index(final.get("potential", extracted.get("potential", "Review"))) if final.get("potential", extracted.get("potential", "Review")) in POTENTIALS else 0, key="v5_final_potential")
+            final["potential"] = fc14.selectbox("Potential", POTENTIAL_OPTIONS, index=POTENTIAL_OPTIONS.index(final.get("potential", extracted.get("potential", "TBD"))) if final.get("potential", extracted.get("potential", "TBD")) in POTENTIAL_OPTIONS else 0, key="v5_final_potential")
             final["stage"] = fc15.selectbox("Stage", STAGES, index=STAGES.index(final.get("stage", extracted.get("stage", "NEW"))) if final.get("stage", extracted.get("stage", "NEW")) in STAGES else 0, key="v5_final_stage")
             logged_in_owner = st.session_state.get("authenticated_username", "")
             st.session_state["v5_final_owner"] = logged_in_owner
@@ -4354,7 +4356,7 @@ elif page == "Inquiry Input":
                             "distribution_type": final.get("distribution_type", "Unknown"),
                             "legal_entity": final.get("legal_entity", ""),
                             "inquiry_summary": extracted.get("inquiry_summary", ""),
-                            "potential": final.get("potential", "Review"),
+                            "potential": final.get("potential", "TBD"),
                             "potential_reason": final.get("potential_reason", ""),
                             "stage": final.get("stage", "NEW"),
                             "owner": st.session_state.get("authenticated_username", ""),
@@ -4426,7 +4428,7 @@ elif page == "Inquiry List":
 
     potential_filter = c.selectbox(
         "Potential",
-        ["All"] + POTENTIALS
+        ["All"] + POTENTIAL_OPTIONS
     )
 
     sql = """
