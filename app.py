@@ -3193,6 +3193,12 @@ def authenticate_user():
       [data-testid="stTextInput"] label {color:#344054 !important;font-size:0.9rem !important;font-weight:600 !important;}
       [data-testid="stTextInput"] input {height:2.65rem !important;border-radius:8px !important;border-color:#d0d5dd !important;color:#101828 !important;font-size:0.95rem !important;}
       [data-testid="stFormSubmitButton"] button {width:auto !important;min-width:120px;padding:0.45rem 1.15rem !important;border-radius:8px !important;}
+
+      [data-testid="stAppViewContainer"] {background:#f5f7fa !important;}
+      [data-testid="stAppViewContainer"] > .main .block-container {padding-top:6vh !important;}
+      [data-testid="stForm"] {background:#fff;border:1px solid #e4e7ec;border-radius:14px;padding:1.5rem 1.6rem;box-shadow:0 12px 32px rgba(16,24,40,.06);}
+      [data-testid="stFormSubmitButton"] button {background:#26364a !important;border:1px solid #26364a !important;border-radius:7px !important;font-weight:600 !important;}
+      [data-testid="stFormSubmitButton"] button:hover {background:#1d2939 !important;border-color:#1d2939 !important;}
     </style>
     """, unsafe_allow_html=True)
     st.markdown("<div style='height:5vh'></div>", unsafe_allow_html=True)
@@ -3404,6 +3410,447 @@ st.markdown("""
         padding-top: .35rem;
         padding-bottom: .35rem;
     }
+
+/* GIM PREMIUM ENTERPRISE REDESIGN 2026-11-18 */
+
+/* Overall workspace */
+:root {
+    color-scheme: light;
+}
+[data-testid="stAppViewContainer"] {
+    background: #f4f6f9 !important;
+}
+[data-testid="stHeader"] {
+    background: rgba(244,246,249,.96) !important;
+}
+[data-testid="stMainBlockContainer"] {
+    max-width: 1780px;
+    padding: 1.6rem 2.2rem 2.5rem !important;
+}
+h1, h2, h3, h4 {
+    color: #172b42 !important;
+    letter-spacing: -.025em;
+}
+h1 { font-weight: 700 !important; }
+h2, h3 { font-weight: 650 !important; }
+[data-testid="stCaptionContainer"] p {
+    color: #66768a;
+}
+
+/* Sidebar navigation */
+[data-testid="stSidebar"] {
+    background: #172b42 !important;
+    border-right: 1px solid #263d56 !important;
+}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stSidebar"] [data-testid="stHeader"],
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color: #f2f5f9 !important;
+}
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
+    color: #aab8c8 !important;
+}
+[data-testid="stSidebar"] [data-testid="stButton"] button {
+    min-height: 2.65rem;
+    background: transparent !important;
+    color: #dce5ef !important;
+    border: 1px solid transparent !important;
+    border-radius: 7px !important;
+    text-align: left !important;
+    font-weight: 550 !important;
+    padding-left: .9rem !important;
+}
+[data-testid="stSidebar"] [data-testid="stButton"] button:hover {
+    background: #263e58 !important;
+    border-color: #3a536e !important;
+    color: #ffffff !important;
+}
+[data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"] {
+    background: #344f6c !important;
+    border-color: #58718c !important;
+    color: #ffffff !important;
+}
+[data-testid="stSidebar"] hr {
+    border-color: #344b63 !important;
+}
+
+/* Dashboard heading */
+.dashboard-hero {
+    background: #192f47 !important;
+    border: 1px solid #263f59 !important;
+    border-left: 5px solid #bd8298 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 5px 16px rgba(20,39,59,.10) !important;
+    padding: 1.45rem 1.7rem !important;
+    margin: .2rem 0 1.25rem !important;
+}
+.dashboard-eyebrow,
+.dashboard-period-label {
+    color: #d5a7b8 !important;
+    font-size: .68rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .15em !important;
+}
+.dashboard-title {
+    color: #ffffff !important;
+    font-size: 1.85rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -.035em !important;
+}
+.dashboard-subtitle {
+    color: #c2ceda !important;
+    font-size: .88rem !important;
+    margin-top: .35rem !important;
+}
+
+/* Dashboard content spacing */
+[data-testid="stMainBlockContainer"]:has(.dashboard-hero) {
+    padding-top: 1.25rem !important;
+}
+[data-testid="stMainBlockContainer"]:has(.dashboard-hero)
+[data-testid="stVerticalBlock"] {
+    gap: .75rem !important;
+}
+[data-testid="stMainBlockContainer"]:has(.dashboard-hero)
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background: #ffffff !important;
+    border: 1px solid #e1e6ed !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 3px rgba(16,24,40,.035) !important;
+}
+
+/* Labels and input controls */
+[data-testid="stMainBlockContainer"]:has(.dashboard-hero)
+[data-testid="stWidgetLabel"] p {
+    color: #47576a !important;
+    font-size: .78rem !important;
+    font-weight: 650 !important;
+}
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stDateInput"] input,
+[data-testid="stNumberInput"] input,
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+    background: #ffffff !important;
+    border: 1px solid #cbd4df !important;
+    border-radius: 6px !important;
+    color: #24364a !important;
+    min-height: 2.45rem;
+}
+[data-testid="stTextInput"] input:focus,
+[data-testid="stTextArea"] textarea:focus,
+[data-testid="stDateInput"] input:focus {
+    border-color: #526f8d !important;
+    box-shadow: 0 0 0 1px #526f8d !important;
+}
+[data-testid="stTextInput"] input::placeholder {
+    color: #98a4b3 !important;
+}
+
+/* Buttons */
+[data-testid="stButton"] button,
+[data-testid="stFormSubmitButton"] button {
+    min-height: 2.35rem;
+    border-radius: 6px !important;
+    font-size: .84rem !important;
+    font-weight: 600 !important;
+    transition: background .15s ease, border-color .15s ease;
+}
+[data-testid="stButton"] button[kind="primary"],
+[data-testid="stFormSubmitButton"] button[kind="primary"] {
+    background: #263e58 !important;
+    border-color: #263e58 !important;
+    color: #ffffff !important;
+}
+[data-testid="stButton"] button[kind="primary"]:hover,
+[data-testid="stFormSubmitButton"] button[kind="primary"]:hover {
+    background: #192f47 !important;
+    border-color: #192f47 !important;
+}
+[data-testid="stButton"] button[kind="secondary"] {
+    background: #ffffff !important;
+    border-color: #cbd4df !important;
+    color: #344b63 !important;
+}
+
+/* Company table panel */
+.st-key-company-management-table {
+    background: #ffffff !important;
+    border: 1px solid #dce3eb !important;
+    border-radius: 8px !important;
+    padding: .45rem !important;
+    box-shadow: 0 2px 7px rgba(16,24,40,.035) !important;
+}
+[data-testid="stDataFrame"],
+[data-testid="stDataEditor"] {
+    border: 1px solid #dce3eb !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+}
+[data-testid="stDataFrame"] iframe,
+[data-testid="stDataEditor"] iframe {
+    border: 0 !important;
+}
+
+/* Tabs, expanders and alerts */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    gap: 1.2rem;
+    border-bottom: 1px solid #dce3eb;
+}
+[data-testid="stTabs"] [data-baseweb="tab"] {
+    color: #68788b;
+    font-weight: 600;
+}
+[data-testid="stTabs"] [aria-selected="true"] {
+    color: #263e58 !important;
+}
+[data-testid="stExpander"] details {
+    border: 1px solid #dce3eb !important;
+    border-radius: 7px !important;
+    background: #ffffff !important;
+}
+[data-testid="stExpander"] summary {
+    color: #344b63 !important;
+    font-weight: 600 !important;
+}
+[data-testid="stAlert"] {
+    border-radius: 7px !important;
+}
+
+/* Login page */
+[data-testid="stForm"] {
+    border-radius: 10px !important;
+    border-color: #dce3eb !important;
+    box-shadow: 0 10px 30px rgba(16,24,40,.07) !important;
+}
+
+/* Mobile layout */
+@media (max-width: 768px) {
+    [data-testid="stMainBlockContainer"] {
+        padding: 1rem .85rem 1.5rem !important;
+    }
+    .dashboard-hero {
+        padding: 1.1rem !important;
+    }
+    .dashboard-title {
+        font-size: 1.45rem !important;
+    }
+}
+
+
+/* GIM PREMIUM WORKSPACE OVERRIDE */
+
+/* Sidebar: deep slate with high-contrast navigation */
+section[data-testid="stSidebar"] {
+    background: #182638 !important;
+    border-right: 1px solid #2b3c50 !important;
+}
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+section[data-testid="stSidebar"] label,
+section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 {
+    color: #f1f4f8 !important;
+}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label {
+    color: #e8edf3 !important;
+    border-radius: 6px !important;
+    padding: 7px 10px !important;
+}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+    background: #2a3c52 !important;
+}
+
+/* Main content width and rhythm */
+[data-testid="stMainBlockContainer"] {
+    max-width: 1580px !important;
+    padding-top: 1.4rem !important;
+    padding-bottom: 3rem !important;
+}
+
+/* Dashboard hero */
+.dashboard-hero {
+    border-radius: 10px !important;
+    border: 1px solid #dce2e9 !important;
+    border-top: 3px solid #b8758d !important;
+    box-shadow: 0 2px 8px rgba(20, 35, 52, .04) !important;
+}
+
+/* Data workspace */
+.st-key-company-management-table {
+    background: #fff !important;
+    border: 1px solid #dce2e9 !important;
+    border-radius: 8px !important;
+    padding: 10px !important;
+}
+
+/* Controls */
+[data-testid="stTextInput"] input,
+[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+[data-testid="stDateInput"] input {
+    border-radius: 6px !important;
+}
+[data-testid="stButton"] button {
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+}
+
+/* SIDEBAR BUTTON VISIBILITY FIX */
+section[data-testid="stSidebar"] [data-testid="stButton"] button {
+    background: #ffffff !important;
+    color: #24364a !important;
+    border: 1px solid #d5dde6 !important;
+    border-radius: 7px !important;
+    font-weight: 600 !important;
+    min-height: 2.55rem !important;
+    box-shadow: none !important;
+}
+section[data-testid="stSidebar"] [data-testid="stButton"] button p {
+    color: #24364a !important;
+}
+section[data-testid="stSidebar"] [data-testid="stButton"] button:hover {
+    background: #344b63 !important;
+    border-color: #526a83 !important;
+}
+section[data-testid="stSidebar"] [data-testid="stButton"] button:hover p {
+    color: #ffffff !important;
+}
+
+/* TEAM ACCOUNTS DESIGN FIX */
+
+/* Expander heading */
+section[data-testid="stSidebar"] [data-testid="stExpander"] details > summary {
+    background: #26394e !important;
+    border: 1px solid #52657a !important;
+    border-radius: 8px !important;
+    color: #ffffff !important;
+    padding: 0.65rem 0.8rem !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] details > summary p,
+section[data-testid="stSidebar"] [data-testid="stExpander"] details > summary span {
+    color: #ffffff !important;
+    font-weight: 600 !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] details > summary:hover {
+    background: #344b63 !important;
+    border-color: #8293a6 !important;
+}
+
+/* Expander content area */
+section[data-testid="stSidebar"] [data-testid="stExpander"] details > div {
+    background: #202f42 !important;
+    border: 1px solid #52657a !important;
+    border-top: 0 !important;
+    border-radius: 0 0 8px 8px !important;
+    padding: 0.8rem !important;
+}
+
+/* Labels, captions and account list */
+section[data-testid="stSidebar"] [data-testid="stExpander"] label,
+section[data-testid="stSidebar"] [data-testid="stExpander"] label p,
+section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stCaption"],
+section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stText"],
+section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stMarkdown"],
+section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stMarkdown"] p {
+    color: #e8edf3 !important;
+}
+
+/* Text and password inputs */
+section[data-testid="stSidebar"] [data-testid="stExpander"] input {
+    background: #ffffff !important;
+    color: #24364a !important;
+    border: 1px solid #aab7c5 !important;
+    border-radius: 6px !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] input::placeholder {
+    color: #788697 !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] input:focus {
+    border-color: #d49aae !important;
+    box-shadow: 0 0 0 1px #d49aae !important;
+}
+
+/* Create / Reset Account button */
+section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stFormSubmitButton"] button {
+    background: #d9a7b8 !important;
+    color: #263447 !important;
+    border: 1px solid #d9a7b8 !important;
+    border-radius: 7px !important;
+    font-weight: 700 !important;
+    min-height: 2.5rem !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stFormSubmitButton"] button p {
+    color: #263447 !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stFormSubmitButton"] button:hover {
+    background: #e7bdca !important;
+    border-color: #e7bdca !important;
+}
+
+/* Active accounts separators */
+section[data-testid="stSidebar"] [data-testid="stExpander"] hr {
+    border-color: #52657a !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stAlert"] {
+    border-radius: 7px !important;
+}
+
+/* SIDEBAR NAVIGATION PREMIUM BUTTON FIX */
+
+/* Dashboard, Inquiry Input and Sign Out */
+section[data-testid="stSidebar"] [data-testid="stButton"] button {
+    background: #26394e !important;
+    color: #ffffff !important;
+    border: 1px solid #71849a !important;
+    border-radius: 8px !important;
+    min-height: 2.65rem !important;
+    font-weight: 650 !important;
+    box-shadow: none !important;
+    transition: background 0.15s ease, border-color 0.15s ease !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button p,
+section[data-testid="stSidebar"] [data-testid="stButton"] button span {
+    color: #ffffff !important;
+    font-weight: 650 !important;
+}
+
+/* Hover */
+section[data-testid="stSidebar"] [data-testid="stButton"] button:hover {
+    background: #3b526c !important;
+    border-color: #c3d0dd !important;
+    color: #ffffff !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button:hover p,
+section[data-testid="stSidebar"] [data-testid="stButton"] button:hover span {
+    color: #ffffff !important;
+}
+
+/* Currently selected page */
+section[data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="stBaseButton-primary"] {
+    background: #405a75 !important;
+    border: 1px solid #e1b7c5 !important;
+    color: #ffffff !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="stBaseButton-primary"] p {
+    color: #ffffff !important;
+}
+
+
+/* DASHBOARD TITLEBAR POSITION FIX */
+.dashboard-hero {
+    margin-top: 2rem !important;
+    position: relative !important;
+    top: 0 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -3438,7 +3885,9 @@ with st.sidebar:
 
         if st.button(
             page_name,
-            use_container_width=True
+            use_container_width=True,
+            type="primary" if st.session_state.page == page_name else "secondary",
+            key=f"sidebar_nav_{page_name.lower().replace(' ', '_')}"
         ):
 
             st.session_state.page = page_name
